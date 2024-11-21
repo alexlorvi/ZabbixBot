@@ -1,0 +1,7 @@
+composer.phar
+/vendor/
+composer.lock
+/temp/
+/.vscode/
+/config/config.php
+*.log

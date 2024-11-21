@@ -1,0 +1,19 @@
+<?php
+
+return [
+   'telegram' => [
+        // Add you bot's API key
+        'bot_token' => '',
+        // Bot WebHook
+        'webhook_url' => '',
+        'commands' => [
+            ZabbixBot\Commands\HelpCommand::class,
+            ZabbixBot\Commands\PingCommand::class,
+            ZabbixBot\Commands\TestCommand::class,
+        ],
+    ],
+    'logger' => [
+        'file_path' => __DIR__.'/../logs/main.log',
+        'level' => 'debug',
+    ],
+];
