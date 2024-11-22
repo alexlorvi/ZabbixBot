@@ -2,7 +2,6 @@
 
 namespace ZabbixBot\Commands;
 
-use \Telegram\Bot\Actions;
 use \Telegram\Bot\Commands\Command as TgCommand;
 use ZabbixBot\Services\MsgService;
 
