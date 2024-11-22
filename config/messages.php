@@ -18,6 +18,9 @@ return [
                        '*Example:*'.PHP_EOL.'/ping google.com'.PHP_EOL.'/ping 8.8.8.8 20',
             'start' => emoji('satelite').' Ping host...',
         ],
-    ]
-
+    ],
+    'emoji' => [
+        'warn' => "\xE2\x9A\xA0",
+        'satelite' => "\xF0\x9F\x93\xA1",
+    ],
 ];

@@ -1,6 +1,7 @@
 <?php
 
 use ZabbixBot\Services\LoggerService;
+use ZabbixBot\Services\MsgService;
 
 function mainLOG(string $loggerType, string $level,string $message, $context = []) {
     $loggerService = LoggerService::getInstance();
@@ -11,6 +12,11 @@ function userLOG($userId, $level, $message, $context = []) {
     $loggerService = LoggerService::getInstance();
     $userLogger = $loggerService->createUserLogger($userId);
     $userLogger->log($level, $message, $context);
+}
+
+function emoji(string $name, $default = ''):string {
+    $msg = MsgService::getInstance();
+    return $msg->get('emoji') ?? $default;
 }
 
 /*
@@ -24,15 +30,4 @@ function fixpath(string $path):string {
 
 function startsWith($string, $startString) { 
     return substr($string, 0, strlen($startString)) === $startString; 
-}
-
-function emoji(string $name):string {
-    switch ($name) {
-        case 'warn':
-            return "\xE2\x9A\xA0";
-        case 'satelite':
-            return "\xF0\x9F\x93\xA1";
-        default:
-            return '';
-    }
 }
