@@ -12,14 +12,14 @@ class MsgService {
     public function __construct() {
         $cfg = ConfigService::getInstance();
         $lang = $cfg->getNested('telegram.lang');
-        $config_file = __DIR__ . implode('.', array_filter(['/../../config/messages', $lang, '.php']));
-        $config_file_main = __DIR__ . implode('.', array_filter(['/../../config/messages', null, '.php']));
+        $config_file = __DIR__ . implode('.', array_filter(['/../../config/messages', $lang, 'php']));
+        $config_file_main = __DIR__ . implode('.', array_filter(['/../../config/messages', null, 'php']));
         if (file_exists($config_file)) {
             $this->config = require $config_file;
         } elseif (file_exists($config_file_main)) {
             $this->config = require $config_file_main;
         } else{
-            throw new Exception('Config file not exists.');
+            throw new Exception('Messages file not exists.'.PHP_EOL.$config_file.PHP_EOL.$config_file_main);
         }
     }
 
