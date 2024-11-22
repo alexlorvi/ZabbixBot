@@ -29,15 +29,6 @@ class ConfigService {
     }
 
     public function getNested($path, $default = null):mixed {
-        $keys = explode('.', $path);
-        $value = $this->config;
-        foreach ($keys as $key) {
-            if (isset($value[$key])) {
-                $value = $value[$key];
-            } else {
-                return $default;
-            }
-        }
-        return $value;
+        return getNestedFromArray($this->config,$path,$default);
     }
 }

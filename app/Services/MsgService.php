@@ -6,7 +6,7 @@ use ZabbixBot\Services\ConfigService;
 use Exception;
 
 class MsgService {
-    private static $instance; 
+    private static $instance;
     private $message;
 
     public function __construct() {
@@ -36,15 +36,6 @@ class MsgService {
     }
 
     public function getNested($path, $default = null):mixed {
-        $keys = explode('.', $path);
-        $value = $this->message;
-        foreach ($keys as $key) {
-            if (isset($value[$key])) {
-                $value = $value[$key];
-            } else {
-                return $default;
-            }
-        }
-        return $value;
+        return getNestedFromArray($this->message,$path, $default);
     }
 }

@@ -5,6 +5,7 @@ namespace ZabbixBot;
 use Telegram\Bot\Api;
 
 use ZabbixBot\Services\ConfigService;
+use ZabbixBot\Services\ZabbixService;
 
 /**
  * Class BotController.
@@ -14,8 +15,10 @@ use ZabbixBot\Services\ConfigService;
 class BotController {
     private Api $tgBot;
     protected array $config;
+    private ZabbixService $zabbixService;
     public function __construct(){
         $this->config = ConfigService::getInstance()->getNested('telegram');
+        $this->zabbixService = new ZabbixService();
         $this->tgBot = new Api($this->config['bot_token']);
         if (isset($this->config['commands']) && is_array($this->config['commands'])) {
             $this->tgBot->addCommands($this->config['commands']);
@@ -66,10 +69,12 @@ class BotController {
                 break; 
         }  */
         if (!startsWith($text, '/')) { 
-            $reply = 'You said: ' . $text;
+            $reply = ($this->zabbixService->isZabbixUser($chatId)) ? 'Zabbix User said: ':'You said: ';
+            $reply .= $text;
             $this->tgBot->sendMessage([ 
                 'chat_id' => $chatId, 
-                'text' => 'You said: ' . $text, 
+                'text' => $reply,
+                'parse_mode' => 'markdown',
             ]); 
             userLOG($chatId,'info','< '.$reply);
         }

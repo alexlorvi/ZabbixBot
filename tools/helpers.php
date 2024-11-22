@@ -31,3 +31,16 @@ function fixpath(string $path):string {
 function startsWith($string, $startString) { 
     return substr($string, 0, strlen($startString)) === $startString; 
 }
+
+function getNestedFromArray(array $searchArray,string $path, $default = null):mixed {
+    $keys = explode('.', $path);
+    $value = $searchArray;
+    foreach ($keys as $key) {
+        if (isset($value[$key])) {
+            $value = $value[$key];
+        } else {
+            return $default;
+        }
+    }
+    return $value;
+}

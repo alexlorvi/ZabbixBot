@@ -24,9 +24,12 @@ class LoggerService {
 
     private function initLoggers() {
         $loggerConfig = ConfigService::getInstance()->getNested('logger');
-        $mainLogger = new Logger('main');
-        $mainLogger->pushHandler(new StreamHandler(fixpath($loggerConfig['file_path']).$loggerConfig['main_name'], Logger::toMonologLevel($loggerConfig['main_level'])));
-        $this->loggers['main'] = $mainLogger;
+        foreach(['main','zabbix'] as $loggerName) {
+            $tmpLogger = new Logger($loggerName);
+            $handler = new StreamHandler(fixpath($loggerConfig['file_path']).$loggerConfig['main_name'], Logger::toMonologLevel($loggerConfig['main_level']));
+            $tmpLogger->pushHandler($handler);
+            $this->loggers[$loggerName] = $tmpLogger;
+        }
     }
 
     public function log(string $loggerType,string $level, $message, array $context = []):void {
