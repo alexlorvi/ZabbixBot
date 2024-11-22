@@ -4,17 +4,25 @@ namespace ZabbixBot\Commands;
 
 use \Telegram\Bot\Actions;
 use \Telegram\Bot\Commands\Command;
+use ZabbixBot\Services\MsgService;
 
 class HelpCommand extends Command {
     protected string $name = 'help';
-    protected string $description = 'Help Command to describe Bot commands';
+    private MsgService $msg;
+    protected string $description;
+
+    public function __construct() {
+        $this->msg = MsgService::getInstance();
+        $this->description = $this->msg->getNested('command.help.description');
+    }
 
     public function handle()
     {
         $username = $this->getUpdate()->getMessage()->from->username;
 
         $this->replyWithMessage([
-            'text' => "Hello {$username}! Welcome to our bot, Here are our available commands:"
+            'text' => sprintf($this->msg->getNested('command.help.message'),$username),
+            'parse_mode' => 'markdown',
         ]);
 
         # This will update the chat status to "typing..."

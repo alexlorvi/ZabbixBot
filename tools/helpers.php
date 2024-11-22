@@ -30,6 +30,8 @@ function emoji(string $name):string {
     switch ($name) {
         case 'warn':
             return "\xE2\x9A\xA0";
+        case 'satelite':
+            return "\xF0\x9F\x93\xA1";
         default:
             return '';
     }
