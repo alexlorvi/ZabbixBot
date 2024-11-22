@@ -6,10 +6,12 @@ return [
         'bot_token' => '',
         // Bot WebHook
         'webhook_url' => '',
+        // if specified, system search messages.$lang.php, if not specified or not exist, try to use messages.php
+        'lang' => 'en',
         'commands' => [
+            ZabbixBot\Commands\StartCommand::class,
             ZabbixBot\Commands\HelpCommand::class,
             ZabbixBot\Commands\PingCommand::class,
-            ZabbixBot\Commands\TestCommand::class,
         ],
     ],
     'logger' => [

@@ -2,6 +2,7 @@
 
 namespace ZabbixBot\Services;
 
+use ZabbixBot\Services\ConfigService;
 use Exception;
 
 class MsgService {
@@ -9,10 +10,15 @@ class MsgService {
     private $config;
 
     public function __construct() {
-        $config_file = __DIR__ . '/../../config/messages.php';
+        $cfg = ConfigService::getInstance();
+        $lang = $cfg->getNested('telegram.lang');
+        $config_file = __DIR__ . implode('.', array_filter(['/../../config/messages', $lang, '.php']));
+        $config_file_main = __DIR__ . implode('.', array_filter(['/../../config/messages', null, '.php']));
         if (file_exists($config_file)) {
             $this->config = require $config_file;
-        } else {
+        } elseif (file_exists($config_file_main)) {
+            $this->config = require $config_file_main;
+        } else{
             throw new Exception('Config file not exists.');
         }
     }
