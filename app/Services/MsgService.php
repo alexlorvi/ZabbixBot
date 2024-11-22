@@ -16,9 +16,9 @@ class MsgService {
         $message_file = __DIR__ . '/../../config/' . $langFileName;
         $message_file_main = __DIR__ . '/../../config/' . $mainFileName;
         if (file_exists($message_file)) {
-            $this->message = require $message_file;
+            $this->message = require_once $message_file;
         } elseif (file_exists($message_file_main)) {
-            $this->message = require $message_file_main;
+            $this->message = require_once $message_file_main;
         } else{
             throw new Exception('Messages file not exists.'.PHP_EOL.$message_file.PHP_EOL.$message_file_main);
         }

@@ -11,7 +11,7 @@ class ConfigService {
     public function __construct() {
         $config_file = __DIR__ . '/../../config/config.php';
         if (file_exists($config_file)) {
-            $this->config = require $config_file;
+            $this->config = require_once $config_file;
         } else {
             throw new Exception('Config file not exists.');
         }

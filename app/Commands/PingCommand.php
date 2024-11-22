@@ -39,7 +39,7 @@ class PingCommand extends TgCommand {
                 mainLOG('main','error',"General Error: " . $e->getMessage()); 
             }
         } else {
-            $message = $this->replyWithMessage(['text' => "Pinging $host..."]);
+            $message = $this->replyWithMessage(['text' => $this->msg->getNested('command.ping.start')]);
 
             $messageId = $message->getMessageId(); 
             $chatId = $message->getChat()->getId();
@@ -48,7 +48,7 @@ class PingCommand extends TgCommand {
 
             $this->replyWithChatAction(['action' => Actions::TYPING]);
 
-            $pingResults = "";
+            $pingResults = $this->msg->getNested('command.ping.start');
             $callback = function ($line) use (&$pingResults, $chatId, $messageId) { 
                 $pingResults .= $line; 
                 try { 
