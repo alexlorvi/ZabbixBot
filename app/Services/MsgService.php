@@ -7,19 +7,20 @@ use Exception;
 
 class MsgService {
     private static $instance; 
-    private $config;
+    private $message;
 
     public function __construct() {
         $cfg = ConfigService::getInstance();
-        $lang = $cfg->getNested('telegram.lang');
-        $config_file = __DIR__ . implode('.', array_filter(['/../../config/messages', $lang, 'php']));
-        $config_file_main = __DIR__ . implode('.', array_filter(['/../../config/messages', null, 'php']));
-        if (file_exists($config_file)) {
-            $this->config = require $config_file;
-        } elseif (file_exists($config_file_main)) {
-            $this->config = require $config_file_main;
+        $langFileName = implode('.', array_filter(['messages', $cfg->getNested('telegram.lang'), 'php']));
+        $mainFileName = 'messages.php';
+        $message_file = __DIR__ . '/../../config/' . $langFileName;
+        $message_file_main = __DIR__ . '/../../config/' . $mainFileName;
+        if (file_exists($message_file)) {
+            $this->message = require $message_file;
+        } elseif (file_exists($message_file_main)) {
+            $this->message = require $message_file_main;
         } else{
-            throw new Exception('Messages file not exists.'.PHP_EOL.$config_file.PHP_EOL.$config_file_main);
+            throw new Exception('Messages file not exists.'.PHP_EOL.$message_file.PHP_EOL.$message_file_main);
         }
     }
 
@@ -31,12 +32,12 @@ class MsgService {
     }
 
     public function get($key,$default = null):mixed {
-        return $this->config[$key] ?? $default;
+        return $this->message[$key] ?? $default;
     }
 
     public function getNested($path, $default = null):mixed {
         $keys = explode('.', $path);
-        $value = $this->config;
+        $value = $this->message;
         foreach ($keys as $key) {
             if (isset($value[$key])) {
                 $value = $value[$key];
