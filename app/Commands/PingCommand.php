@@ -6,7 +6,6 @@ use Telegram\Bot\Actions;
 use Telegram\Bot\Commands\Command as TgCommand;
 use Telegram\Bot\Exceptions\TelegramOtherException;
 use ZabbixBot\Services\PingService;
-use ZabbixBot\Services\LoggerService as LOG;
 
 class PingCommand extends TgCommand {
     protected string $name = 'ping';
@@ -24,14 +23,16 @@ class PingCommand extends TgCommand {
 
         if (!$host) {
             try { 
-                $this->replyWithMessage([
-                    'text' => emoji('warn') . " Host or IP not specified.\r\n*Usage:* /ping {HOST/IP} _{optional You can set count, default is 4}_\r\n*Example:*\r\n/ping google.com\r\n/ping 8.8.8.8 20",
+                $reply = emoji('warn') . " Host or IP not specified.\r\n*Usage:* /ping {HOST/IP} _{optional You can set count, default is 4}_\r\n*Example:*\r\n/ping google.com\r\n/ping 8.8.8.8 20";
+                $message = $this->replyWithMessage([
+                    'text' => $reply,
                     'parse_mode' => 'markdown',
                 ]);
+                userLOG($message->getChat()->getId(),'info','< Command Ping help reply');
             } catch (TelegramOtherException $e) { 
-                LOG::error("Telegram Error: " . $e->getMessage()); 
+                mainLOG('main','error',"Telegram Error: " . $e->getMessage()); 
             } catch (\Exception $e) { 
-                LOG::error("General Error: " . $e->getMessage()); 
+                mainLOG('main','error',"General Error: " . $e->getMessage()); 
             }
         } else {
             $message = $this->replyWithMessage(['text' => "Pinging $host..."]);
@@ -39,7 +40,7 @@ class PingCommand extends TgCommand {
             $messageId = $message->getMessageId(); 
             $chatId = $message->getChat()->getId();
 
-            LOG::warning(" [$chatId] Handling ping command for host: $host");
+            userLOG($chatId,'info',"< Ping command for host: $host");
 
             $this->replyWithChatAction(['action' => Actions::TYPING]);
 
@@ -53,9 +54,9 @@ class PingCommand extends TgCommand {
                         'text' => $pingResults 
                     ]); 
                 } catch (TelegramOtherException $e) { 
-                    LOG::error("Telegram Error: " . $e->getMessage()); 
+                    mainLOG('main','error',"Telegram Error: " . $e->getMessage()); 
                 } catch (\Exception $e) { 
-                    LOG::error("General Error: " . $e->getMessage()); 
+                    mainLOG('main','error',"General Error: " . $e->getMessage()); 
                 }
             };
             $this->pingService->ping($host,$count,$callback);

@@ -4,17 +4,15 @@ namespace ZabbixBot\Services;
 
 use Monolog\Logger;
 use Monolog\Handler\StreamHandler;
+use Monolog\Formatter\LineFormatter;
 
 class LoggerService {
 
     private static $instance;
-    private static Logger $logger;
+    private $loggers = [];
 
     public function __construct() {
-        $loggerConfig = ConfigService::getInstance()->getNested('logger');
-
-        self::$logger = New Logger('telegram_bot');
-        self::$logger->pushHandler(new StreamHandler($loggerConfig['file_path'],Logger::toMonologLevel($loggerConfig['level'])));
+        $this->initLoggers();
     }
 
     public static function getInstance(): LoggerService {
@@ -24,18 +22,35 @@ class LoggerService {
         return self::$instance;
     }
 
-    public static function error($message, array $context = []) {
-        self::$logger->error($message, $context);
-    }
-    public static function info($message, array $context = []) {
-        self::$logger->info($message, $context);
-    }
-    public static function warning($message, array $context = []) {
-        self::$logger->warning($message, $context);
+    private function initLoggers() {
+        $loggerConfig = ConfigService::getInstance()->getNested('logger');
+        $mainLogger = new Logger('main');
+        $mainLogger->pushHandler(new StreamHandler(fixpath($loggerConfig['file_path']).$loggerConfig['main_name'], Logger::toMonologLevel($loggerConfig['main_level'])));
+        $this->loggers['main'] = $mainLogger;
     }
 
-    public static function log($level, $message, array $context = []) {
-        self::$logger->log($level, $message, $context);
+    public function log(string $loggerType,string $level, $message, array $context = []):void {
+        if (isset($this->loggers[$loggerType])) { 
+            $this->loggers[$loggerType]->log($level, $message, $context); 
+        }
+    }
+
+    public function getLogger($loggerType):mixed {
+        return $this->loggers[$loggerType] ?? null;
+    }
+    
+    public function createUserLogger($userId) {
+        if (!isset($this->loggers[$userId])) {
+            $loggerConfig = ConfigService::getInstance()->getNested('logger');
+            $userLogger = new Logger('user_' . $userId);
+            $handler = new StreamHandler(fixpath($loggerConfig['file_path']).'user_' . $userId . '.log', Logger::toMonologLevel($loggerConfig['user_level']));
+            // Optional: Customize the log format
+            $formatter = new LineFormatter(null, null, true, true);
+            $handler->setFormatter($formatter);
+            $userLogger->pushHandler($handler);
+            $this->loggers[$userId] = $userLogger;
+        }
+        return $this->loggers[$userId];
     }
 
 }

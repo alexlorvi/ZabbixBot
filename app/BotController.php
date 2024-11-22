@@ -5,7 +5,6 @@ namespace ZabbixBot;
 use Telegram\Bot\Api;
 
 use ZabbixBot\Services\ConfigService;
-use ZabbixBot\Services\LoggerService as LOG;
 
 /**
  * Class BotController.
@@ -17,7 +16,6 @@ class BotController {
     protected array $config;
     public function __construct(){
         $this->config = ConfigService::getInstance()->getNested('telegram');
-        LOG::getInstance();
         $this->tgBot = new Api($this->config['bot_token']);
         if (isset($this->config['commands']) && is_array($this->config['commands'])) {
             $this->tgBot->addCommands($this->config['commands']);
@@ -51,14 +49,14 @@ class BotController {
          */
         if ($updates->isType('message')) { 
             $this->handleMessage($updates->getMessage()); 
-            LOG::info('Get message - '.$updates->objectType().' '.$updates->getMessage()->getChat()->getId().' '.$updates->getMessage()->getText());
         } else {
-            LOG::warning('Get message - '.$updates->objectType());
+            mainLOG('main','info','Get message - '.$updates->objectType());
         };
     }
     public function handleMessage($message) { 
         $chatId = $message->getChat()->getId(); 
         $text = $message->getText(); 
+        userLOG($chatId,'info','> '.$text);
         /* switch ($text) { 
             case '/test': 
                 $responseText = 'Welcome to Test bot!'; 
@@ -68,10 +66,12 @@ class BotController {
                 break; 
         }  */
         if (!startsWith($text, '/')) { 
+            $reply = 'You said: ' . $text;
             $this->tgBot->sendMessage([ 
                 'chat_id' => $chatId, 
                 'text' => 'You said: ' . $text, 
             ]); 
+            userLOG($chatId,'info','< '.$reply);
         }
     }
 }

@@ -13,7 +13,9 @@ return [
         ],
     ],
     'logger' => [
-        'file_path' => __DIR__.'/../logs/main.log',
-        'level' => 'debug',
+        'file_path' => __DIR__.'/../logs/',
+        'main_name' => 'main.log',
+        'main_level' => 'debug',
+        'user_level' => 'info',
     ],
 ];
