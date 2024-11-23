@@ -69,7 +69,7 @@ class BotController {
                 break; 
         }  */
         if (!startsWith($text, '/')) { 
-            $reply = ($this->zabbixService->isZabbixUser($chatId)) ? 'Zabbix User said: ':'You said: ';
+            $reply = ($this->zabbixService->isUser($chatId)) ? 'Zabbix User said: ':'You said: ';
             $reply .= $text;
             $this->tgBot->sendMessage([ 
                 'chat_id' => $chatId, 

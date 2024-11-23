@@ -7,7 +7,9 @@ use Exception;
 
 class MsgService {
     private static $instance;
-    private $message;
+    private array $message;
+    private array $def_message = [];
+    private array $reg_message = [];
 
     public function __construct() {
         $cfg = ConfigService::getInstance();
@@ -16,11 +18,11 @@ class MsgService {
         $message_file = __DIR__ . '/../../config/' . $langFileName;
         $message_file_main = __DIR__ . '/../../config/' . $mainFileName;
         if (file_exists($message_file)) {
-            $this->message = require_once $message_file;
+            $this->reg_message = require_once $message_file;
         } elseif (file_exists($message_file_main)) {
-            $this->message = require_once $message_file_main;
+            $this->def_message = require_once $message_file_main;
         } else{
-            throw new Exception('Messages file not exists.'.PHP_EOL.$message_file.PHP_EOL.$message_file_main);
+            throw new Exception('Messages file not exists.'.implode(',',[$message_file, $message_file_main]));
         }
     }
 
@@ -32,10 +34,10 @@ class MsgService {
     }
 
     public function get($key,$default = null):mixed {
-        return $this->message[$key] ?? $default;
+        return $this->reg_message[$key] ?? $this->def_message[$key] ?? null;
     }
 
     public function getNested($path, $default = null):mixed {
-        return getNestedFromArray($this->message,$path, $default);
+        return getNestedFromArray($this->reg_message,$path, getNestedFromArray($this->def_message,$path, $default));
     }
 }
