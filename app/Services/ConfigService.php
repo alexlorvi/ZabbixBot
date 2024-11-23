@@ -9,7 +9,7 @@ class ConfigService {
     private $config;
 
     public function __construct() {
-        $config_file = __DIR__ . '/../../config/config.php';
+        $config_file = fixpath(CONF_PATH).'config.php';
         if (file_exists($config_file)) {
             $this->config = require_once $config_file;
         } else {

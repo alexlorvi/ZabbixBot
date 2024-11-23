@@ -7,7 +7,7 @@ use Exception;
 
 class MsgService {
     private static $instance;
-    private array $message;
+    //private array $message;
     private array $def_message = [];
     private array $reg_message = [];
 
@@ -15,8 +15,8 @@ class MsgService {
         $cfg = ConfigService::getInstance();
         $langFileName = implode('.', array_filter(['messages', $cfg->getNested('telegram.lang'), 'php']));
         $mainFileName = 'messages.php';
-        $message_file = __DIR__ . '/../../config/' . $langFileName;
-        $message_file_main = __DIR__ . '/../../config/' . $mainFileName;
+        $message_file = fixpath(MSG_PATH) . $langFileName;
+        $message_file_main = fixpath(MSG_PATH) . $mainFileName;
         if (file_exists($message_file)) {
             $this->reg_message = require_once $message_file;
         } elseif (file_exists($message_file_main)) {
@@ -40,4 +40,5 @@ class MsgService {
     public function getNested($path, $default = null):mixed {
         return getNestedFromArray($this->reg_message,$path, getNestedFromArray($this->def_message,$path, $default));
     }
+
 }
