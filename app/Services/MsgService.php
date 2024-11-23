@@ -7,9 +7,8 @@ use Exception;
 
 class MsgService {
     private static $instance;
-    //private array $message;
-    private array $def_message = [];
-    private array $reg_message = [];
+    private $def_message = [];
+    private $reg_message = [];
 
     public function __construct() {
         $cfg = ConfigService::getInstance();
@@ -17,12 +16,14 @@ class MsgService {
         $mainFileName = 'messages.php';
         $message_file = fixpath(MSG_PATH) . $langFileName;
         $message_file_main = fixpath(MSG_PATH) . $mainFileName;
-        if (file_exists($message_file)) {
-            $this->reg_message = require_once $message_file;
-        } elseif (file_exists($message_file_main)) {
-            $this->def_message = require_once $message_file_main;
-        } else{
+        if (!file_exists($message_file) && !file_exists($message_file_main)) {
             throw new Exception('Messages file not exists.'.implode(',',[$message_file, $message_file_main]));
+        }
+        if (file_exists($message_file)) {
+            $this->reg_message = include_once($message_file);
+        }
+        if (file_exists($message_file_main)) {
+            $this->def_message = include_once($message_file_main);
         }
     }
 
