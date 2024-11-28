@@ -19,6 +19,10 @@ function emoji(string $name, $default = ''):string {
     return $msg->getNested('emoji.'.$name) ?? $default;
 }
 
+function unichr($i) {
+    return iconv('UCS-4LE', 'UTF-8', pack('V', $i));
+}
+
 /*
  * Simple Functions
  * 

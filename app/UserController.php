@@ -25,29 +25,57 @@ class UserController {
 
     private function userPrepare(){
         $userToken = $this->user->get('zabbixToken');
-        if (!isset($userToken)) {
-            $zbxUserId = $this->zabbixService->getUserID($this->userID);
-            userLOG($this->userID,'info','Preference Token not exist. Get it for Zabbix user #'.$zbxUserId);
-            if (isset($zbxUserId)) {
-                $zbxTokenId = $this->zabbixService->getUserToken($zbxUserId);
-                if (!isset($zbxTokenId)) {
-                    $zbxTokenId = $this->zabbixService->createUserToken($zbxUserId);
-                    userLOG($this->userID,'info','Token ID not exist on Zabbix server. Create new - '.$zbxTokenId);
-                } else {
-                    userLOG($this->userID,'info','Found Token ID on Zabbix server - '.$zbxTokenId);
-                }
-                $userToken = $this->zabbixService->generateUserToken($zbxTokenId);
-                if (($userToken) && (strlen($userToken)==64)) {
-                    $this->user->set('zabbixToken',$userToken);
-                    userLOG($this->userID,'info','New API Token Generated. '.$userToken);
-                    $this->user->writeUserPreference();
-                } else {
-                    userLOG($this->userID,'error','New API Token Generation failed. '.$userToken);
-                }
+        if (!isset($userToken)) $this->userApiTokenGeneration();
+    }
+
+    private function userApiTokenGeneration() {
+        $zbxUserId = $this->zabbixService->getUserID($this->userID);
+        userLOG($this->userID,'info','Preference Token not exist. Get it for Zabbix user #'.$zbxUserId);
+        if (isset($zbxUserId)) {
+            $zbxTokenId = $this->zabbixService->getUserToken($zbxUserId);
+            if (!isset($zbxTokenId)) {
+                $zbxTokenId = $this->zabbixService->createUserToken($zbxUserId);
+                userLOG($this->userID,'info','Token ID not exist on Zabbix server. Create new - '.$zbxTokenId);
             } else {
-                userLOG($this->userID,'error','Zabbix ID not found.');
+                userLOG($this->userID,'info','Found Token ID on Zabbix server - '.$zbxTokenId);
             }
-        } 
+            $userToken = $this->zabbixService->generateUserToken($zbxTokenId);
+            if (($userToken) && (strlen($userToken)==64)) {
+                $this->user->set('zabbixToken',$userToken);
+                userLOG($this->userID,'info','New API Token Generated. '.$userToken);
+                $this->user->writeUserPreference();
+            } else {
+                userLOG($this->userID,'error','New API Token Generation failed. '.$userToken);
+            }
+        } else {
+            userLOG($this->userID,'error','Zabbix ID not found.');
+        }
+    }
+
+    public function userEventsSummary($severity=[5],$group=NULL,$countTotal = true) {
+        $userEvents = $this->zabbixService->getUserProblems($this->user->get('zabbixToken'),$severity);
+        $responce = [];
+        if (is_array($userEvents) && count($userEvents)>0) {
+            $eventsSum = 0;
+            foreach($userEvents as $event) {
+                $line = '';
+                if (isset($event['eventid'])) {
+                    $eventInfo = $this->zabbixService->getEventInfo($event['eventid']);
+                    $line .= date('d/m/Y H:i:s',$event['clock']);
+                    //$line .= " - ".$eventInfo['hosts']['0']['host']." (".$event['hosts']['0']['name']." )";
+                    //$line .= " - ".$eventInfo['hosts']['0']['host'];
+                    $line .= " - /ev".$event['eventid'].PHP_EOL;
+                    $line .= $eventInfo['hosts']['0']['name'].PHP_EOL;
+                    $line .= unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).PHP_EOL;
+                }
+                $responce[] = $line;
+                $eventsSum += 1;
+            }
+            if ($countTotal) $responce[] = 'Total count - '.$eventsSum;
+        } else {
+            $responce[] = '';
+        }
+        return $responce;
     }
 
     public function isUser(){

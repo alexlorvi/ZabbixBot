@@ -32,7 +32,7 @@ class User {
     public function writeUserPreference():void {
         try {
             file_put_contents($this->userPrefFile, json_encode($this->userPreferences)); 
-            userLOG($this->userID,'info','Save preferences into file. '.$this->userPreferences);
+            userLOG($this->userID,'info','Save preferences into file. '.$this->userPrefFile);
         } catch (Exception $e) {
             mainLOG('main','error','Error write file '.$this->userPrefFile.' '.$e->getMessage());
         }
