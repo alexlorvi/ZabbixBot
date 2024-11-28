@@ -29,15 +29,16 @@ class User {
         return [];
     }
     
-    public function writeUserPreference($userId, $language):void {
+    public function writeUserPreference():void {
         try {
             file_put_contents($this->userPrefFile, json_encode($this->userPreferences)); 
+            userLOG($this->userID,'info','Save preferences into file. '.$this->userPreferences);
         } catch (Exception $e) {
             mainLOG('main','error','Error write file '.$this->userPrefFile.' '.$e->getMessage());
         }
     }
 
-    public function get($key,$default = null):mixed {
+    public function get($key,$default = null):string|null {
         return $this->userPreferences[$key] ?? $default;
     }
 
