@@ -18,7 +18,7 @@ class User {
     }
 
     private function getFilePath() {
-        return fixpath(USER_PREF_PATH).'/user_'.$this->userID.'.json';
+        return fixpath(USER_PREF_PATH).'user_'.$this->userID.'.json';
     }
 
     public function readUserPreference() {
