@@ -24,11 +24,9 @@ class MsgService {
             if (count($tmp_arr)>0) {
                 $langName = $tmp_arr[1];
                 $this->languages[] = $langName;
-                echo 'ar - '.realpath($filename).PHP_EOL;
                 $this->messages[$langName] = require realpath($filename);
             } else {
                 $this->languages[] = $defaultName;
-                echo 'str - '.realpath($filename).PHP_EOL;
                 $this->messages[$defaultName] = require realpath($filename);
             }
         }
