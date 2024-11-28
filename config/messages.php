@@ -1,10 +1,6 @@
 <?php
 
 return [
-    'emoji' => [
-        'warn' => "\xE2\x9A\xA0",
-        'satelite' => "\xF0\x9F\x93\xA1",
-    ],
     'command' => [
         'start' => [
             'description' => 'Start Command to get you started',

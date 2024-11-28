@@ -19,8 +19,4 @@ return [
             'start' => emoji('satelite').' Ping host...',
         ],
     ],
-    'emoji' => [
-        'warn' => "\xE2\x9A\xA0",
-        'satelite' => "\xF0\x9F\x93\xA1",
-    ],
 ];
