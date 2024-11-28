@@ -11,13 +11,26 @@ return [
         'commands' => [
             ZabbixBot\Commands\StartCommand::class,
             ZabbixBot\Commands\HelpCommand::class,
+        ],
+        'user_commands' => [
             ZabbixBot\Commands\PingCommand::class,
         ],
     ],
+    'zabbix' => [
+        'host' => '',
+        'apikey' => '',
+    ],
     'logger' => [
-        'file_path' => __DIR__.'/../logs/',
+        'file_path' => LOG_PATH,
         'main_name' => 'main.log',
-        'main_level' => 'debug',
+        'main_level' => 'info',
         'user_level' => 'info',
+    ],
+    // move here from Messages due to messages fail into loop in load
+    // call function emoji() initiate load message files
+    // when files try to load on second, requre_once return true and clear all previous set
+    'emoji' => [
+        'warn' => "\xE2\x9A\xA0",
+        'satelite' => "\xF0\x9F\x93\xA1",
     ],
 ];
