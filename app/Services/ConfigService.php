@@ -11,7 +11,7 @@ class ConfigService {
     public function __construct() {
         $config_file = fixpath(CONF_PATH).'config.php';
         if (file_exists($config_file)) {
-            $this->config = require_once $config_file;
+            $this->config = include_once $config_file;
         } else {
             throw new Exception('Config file not exists.');
         }

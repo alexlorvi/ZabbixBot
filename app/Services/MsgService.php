@@ -7,24 +7,36 @@ use Exception;
 
 class MsgService {
     private static $instance;
-    private $def_message = [];
-    private $reg_message = [];
+    private array $messages = [];
+    private array $languages = [];
+    private string $currentLanguage;
+    private string $defaultName = 'def';
 
     public function __construct() {
+        $this->readLangFiles($this->defaultName);
         $cfg = ConfigService::getInstance();
-        $langFileName = implode('.', array_filter(['messages', $cfg->getNested('telegram.lang'), 'php']));
-        $mainFileName = 'messages.php';
-        $message_file = fixpath(MSG_PATH) . $langFileName;
-        $message_file_main = fixpath(MSG_PATH) . $mainFileName;
-        if (!file_exists($message_file) && !file_exists($message_file_main)) {
-            throw new Exception('Messages file not exists.'.implode(',',[$message_file, $message_file_main]));
+        $this->setLang($cfg->getNested('telegram.lang'));
+    }
+
+    private function readLangFiles(string $defaultName){
+        foreach(glob(MSG_PATH.'/messages*.php') as $filename) {
+            $tmp_arr = array_diff(explode('.',basename($filename)),['messages','php']);
+            if (count($tmp_arr)>0) {
+                $langName = $tmp_arr[1];
+                $this->languages[] = $langName;
+                echo 'ar - '.realpath($filename).PHP_EOL;
+                $this->messages[$langName] = require realpath($filename);
+            } else {
+                $this->languages[] = $defaultName;
+                echo 'str - '.realpath($filename).PHP_EOL;
+                $this->messages[$defaultName] = require realpath($filename);
+            }
         }
-        if (file_exists($message_file)) {
-            $this->reg_message = include_once($message_file);
-        }
-        if (file_exists($message_file_main)) {
-            $this->def_message = include_once($message_file_main);
-        }
+        $this->currentLanguage = $defaultName;
+    }
+
+    public function setLang($strLang) {
+        if (in_array($strLang,$this->languages)) $this->currentLanguage = $strLang;
     }
 
     public static function getInstance(): MsgService {
@@ -35,11 +47,15 @@ class MsgService {
     }
 
     public function get($key,$default = null):mixed {
-        return $this->reg_message[$key] ?? $this->def_message[$key] ?? null;
+        return $this->messages[$this->currentLanguage][$key] ?? $this->messages[$this->defaultName][$key] ?? $default;
     }
 
     public function getNested($path, $default = null):mixed {
-        return getNestedFromArray($this->reg_message,$path, getNestedFromArray($this->def_message,$path, $default));
+        return getNestedFromArray($this->messages[$this->currentLanguage],$path, getNestedFromArray($this->messages[$this->defaultName],$path, $default));
     }
 
+    public function getLanguages() {
+        return $this->languages;
+    }
+ 
 }

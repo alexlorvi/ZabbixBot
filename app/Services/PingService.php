@@ -4,7 +4,7 @@ namespace ZabbixBot\Services;
 
 class PingService { 
     public function ping($host,$count,callable $callback) { 
-        $command = 'ping -c '.$count.' ' . escapeshellarg($host); 
+        $command = 'ping -O -c '.$count.' ' . escapeshellarg($host); 
         $descriptorspec = [
             1 => ['pipe', 'w'], 
             2 => ['pipe', 'w'] 

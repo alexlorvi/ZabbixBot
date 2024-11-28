@@ -6,6 +6,8 @@ use Telegram\Bot\Api;
 
 use ZabbixBot\Services\ConfigService;
 use ZabbixBot\Services\ZabbixService;
+use ZabbixBot\Services\MsgService;
+use ZabbixBot\UserController;
 
 /**
  * Class BotController.
@@ -13,16 +15,17 @@ use ZabbixBot\Services\ZabbixService;
  */
 
 class BotController {
-    private Api $tgBot;
+    protected Api $tgBot;
     protected array $config;
-    private ZabbixService $zabbixService;
+    protected UserController $user;
+    protected ZabbixService $zabbixService;
     public function __construct(){
         $this->config = ConfigService::getInstance()->getNested('telegram');
-        $this->zabbixService = new ZabbixService();
+        //$this->zabbixService = new ZabbixService();
+        $this->user = new UserController();
         $this->tgBot = new Api($this->config['bot_token']);
         if (isset($this->config['commands']) && is_array($this->config['commands'])) {
             $this->tgBot->addCommands($this->config['commands']);
-            $this->tgBot->commandsHandler(true);
         }
     }
 
@@ -54,11 +57,13 @@ class BotController {
             $this->handleMessage($updates->getMessage()); 
         } else {
             mainLOG('main','info','Get message - '.$updates->objectType());
+            mainLOG('main','debug',print_r($updates));
         };
     }
     public function handleMessage($message) { 
         $chatId = $message->getChat()->getId(); 
         $text = $message->getText(); 
+        $this->user->setUserID($chatId);
         userLOG($chatId,'info','> '.$text);
         /* switch ($text) { 
             case '/test': 
@@ -68,15 +73,18 @@ class BotController {
                 $responseText = 'You said: ' . $text; 
                 break; 
         }  */
-        /* if ($this->zabbixService->isUser($chatId) &&
+
+        if ($this->user->isUser() &&
             isset($this->config['user_commands']) && 
             is_array($this->config['user_commands'])) {
             
             $this->tgBot->addCommands($this->config['user_commands']);
-        } */
+            $msg = MsgService::getInstance();
+            $msg->setLang('ua');
+        }
 
         if (!startsWith($text, '/')) { 
-            $reply = ($this->zabbixService->isUser($chatId)) ? 'Zabbix User said: ':'You said: ';
+            $reply = ($this->user->isUser()) ? 'Zabbix User said: ':'You said: ';
             $reply .= $text;
             $this->tgBot->sendMessage([ 
                 'chat_id' => $chatId, 
@@ -84,6 +92,8 @@ class BotController {
                 'parse_mode' => 'markdown',
             ]); 
             userLOG($chatId,'info','< '.$reply);
+        } elseif (is_array($this->tgBot->getCommands()) && count($this->tgBot->getCommands())>1) {
+            $this->tgBot->commandsHandler(true);
         }
     }
 }

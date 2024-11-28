@@ -25,6 +25,9 @@ class PingCommand extends TgCommand {
         $host = $this->argument('host');
         $count = $this->argument('count', 4);
 
+        $count = ($count>0) ? 50 : $count;
+        $count = ($count<0) ? 4 : $count;
+
         if (!$host) {
             try { 
                 $reply = $this->msg->getNested('command.ping.usage');
@@ -52,6 +55,7 @@ class PingCommand extends TgCommand {
             $callback = function ($line) use (&$pingResults, $chatId, $messageId) { 
                 $pingResults .= $line; 
                 try { 
+                    userLOG($chatId,'debug',"<<<<".$pingResults);
                     $this->telegram->editMessageText([ 
                         'chat_id' => $chatId, 
                         'message_id' => $messageId, 

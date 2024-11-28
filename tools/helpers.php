@@ -1,7 +1,7 @@
 <?php
 
 use ZabbixBot\Services\LoggerService;
-use ZabbixBot\Services\MsgService;
+use ZabbixBot\Services\ConfigService;
 
 function mainLOG(string $loggerType, string $level,string $message, $context = []) {
     $loggerService = LoggerService::getInstance();
@@ -15,8 +15,8 @@ function userLOG($userId, $level, $message, $context = []) {
 }
 
 function emoji(string $name, $default = ''):string {
-    $msg = MsgService::getInstance();
-    return $msg->get('emoji') ?? $default;
+    $msg = ConfigService::getInstance();
+    return $msg->getNested('emoji.'.$name) ?? $default;
 }
 
 /*
@@ -32,7 +32,8 @@ function startsWith($string, $startString) {
     return substr($string, 0, strlen($startString)) === $startString; 
 }
 
-function getNestedFromArray(array $searchArray,string $path, $default = null):mixed {
+function getNestedFromArray($searchArray,string $path, $default = null):mixed {
+    if (!is_array($searchArray)) return $default;
     $keys = explode('.', $path);
     $value = $searchArray;
     foreach ($keys as $key) {
