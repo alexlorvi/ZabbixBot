@@ -25,7 +25,7 @@ class PingCommand extends TgCommand {
         $host = $this->argument('host');
         $count = $this->argument('count', 4);
 
-        $count = ($count>0) ? 50 : $count;
+        $count = ($count>50) ? 50 : $count;
         $count = ($count<0) ? 4 : $count;
 
         if (!$host) {
