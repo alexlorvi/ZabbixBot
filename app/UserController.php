@@ -4,16 +4,20 @@ namespace ZabbixBot;
 
 use ZabbixBot\Services\ZabbixService;
 use ZabbixBot\Services\LangService;
+use ZabbixBot\Services\ConfigService;
+use ZabbixBot\Services\MessageService;
 use ZabbixBot\Models\User;
 
 class UserController {
     protected ZabbixService $zabbixService;
     protected LangService $msg;
+    protected MessageService $messenger;
     protected int $userID;
     protected bool $isZabbixUser = false;
     protected User $user;
 
-    public function __construct($userID = null) {
+    public function __construct(MessageService $message, $userID = null) {
+        $this->messenger = $message;
         $this->zabbixService = new ZabbixService();
         $this->msg = LangService::getInstance();
         if (isset($userID)) $this->setUserID($userID);
@@ -29,6 +33,15 @@ class UserController {
     private function userPrepare(){
         $userToken = $this->user->get('zabbixToken');
         if (!isset($userToken)) $this->userApiTokenGeneration();
+
+        $userLang = $this->user->get('lang');
+        if (!isset($userToken)) {
+            $cfg = ConfigService::getInstance();
+            $this->user->set('lang',$cfg->getNested('telegram.lang'));
+            $this->user->writeUserPreference();
+        } else {
+            $this->msg->setLang($userLang);
+        }
     }
 
     private function userApiTokenGeneration() {

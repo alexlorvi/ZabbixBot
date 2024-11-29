@@ -5,10 +5,9 @@ namespace ZabbixBot;
 use Telegram\Bot\Api;
 
 use ZabbixBot\Services\ConfigService;
-use ZabbixBot\Services\ZabbixService;
-use ZabbixBot\Services\LangService;
 use ZabbixBot\UserController;
 use ZabbixBot\CustomHttpClient;
+use ZabbixBot\Services\MessageService;
 
 /**
  * Class BotController.
@@ -16,23 +15,26 @@ use ZabbixBot\CustomHttpClient;
  */
 
 class BotController {
-    protected static Api $tgBot;
+    protected Api $tgBot;
     protected array $config;
     protected UserController $user;
-    protected ZabbixService $zabbixService;
+    protected MessageService $message;
     public function __construct(){
         $this->config = ConfigService::getInstance()->getNested('telegram');
-        //$this->zabbixService = new ZabbixService();
-        $this->user = new UserController();
+
         $this->tgBot = new Api($this->config['bot_token']);
         if (isset($this->config['proxy'])) {
             $httpClient = new CustomHttpClient();
             $httpClient->setProxy($this->config['proxy']);
             $this->tgBot->setHttpClientHandler($httpClient);
         }
+
         if (isset($this->config['commands']) && is_array($this->config['commands'])) {
             $this->tgBot->addCommands($this->config['commands']);
         }
+
+        $this->message = new MessageService($this->tgBot);
+        $this->user = new UserController($this->message);
     }
 
     public function registerHook():string {
@@ -85,8 +87,6 @@ class BotController {
             is_array($this->config['user_commands'])) {
             
             $this->tgBot->addCommands($this->config['user_commands']);
-            $msg = LangService::getInstance();
-            $msg->setLang('ua');
         }
 
         if (!startsWith($text, '/')) { 

@@ -4,15 +4,15 @@ namespace ZabbixBot\Commands;
 
 use \Telegram\Bot\Actions;
 use \Telegram\Bot\Commands\Command;
-use ZabbixBot\Services\MsgService;
+use ZabbixBot\Services\LangService;
 
 class HelpCommand extends Command {
     protected string $name = 'help';
-    private MsgService $msg;
+    private LangService $msg;
     protected string $description;
 
     public function __construct() {
-        $this->msg = MsgService::getInstance();
+        $this->msg = LangService::getInstance();
         $this->description = $this->msg->getNested('command.help.description');
     }
 
