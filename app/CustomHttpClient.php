@@ -88,7 +88,8 @@ class CustomHttpClient implements HttpClientInterface
         } catch (GuzzleException $guzzleException) {
             $response = null;
             if ($guzzleException instanceof RequestExceptionInterface) {
-                $response = $guzzleException->getResponse();
+                //$response = $guzzleException->getResponse();
+                $response = $guzzleException->getRequest();
             }
 
             if (! $response instanceof ResponseInterface) {
