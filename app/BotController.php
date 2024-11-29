@@ -8,6 +8,7 @@ use ZabbixBot\Services\ConfigService;
 use ZabbixBot\Services\ZabbixService;
 use ZabbixBot\Services\MsgService;
 use ZabbixBot\UserController;
+use ZabbixBot\CustomHttpClient;
 
 /**
  * Class BotController.
@@ -24,6 +25,11 @@ class BotController {
         //$this->zabbixService = new ZabbixService();
         $this->user = new UserController();
         $this->tgBot = new Api($this->config['bot_token']);
+        if (isset($this->config['proxy'])) {
+            $httpClient = new CustomHttpClient();
+            $httpClient->setProxy($this->config['proxy']);
+            $this->tgBot->setHttpClientHandler($httpClient);
+        }
         if (isset($this->config['commands']) && is_array($this->config['commands'])) {
             $this->tgBot->addCommands($this->config['commands']);
         }
