@@ -3,16 +3,19 @@
 namespace ZabbixBot;
 
 use ZabbixBot\Services\ZabbixService;
+use ZabbixBot\Services\LangService;
 use ZabbixBot\Models\User;
 
 class UserController {
     protected ZabbixService $zabbixService;
+    protected LangService $msg;
     protected int $userID;
     protected bool $isZabbixUser = false;
     protected User $user;
 
     public function __construct($userID = null) {
         $this->zabbixService = new ZabbixService();
+        $this->msg = LangService::getInstance();
         if (isset($userID)) $this->setUserID($userID);
     }
 
@@ -66,7 +69,7 @@ class UserController {
                     //$line .= " - ".$eventInfo['hosts']['0']['host'];
                     $line .= " - /ev".$event['eventid'].PHP_EOL;
                     $line .= $eventInfo['hosts']['0']['name'].PHP_EOL;
-                    $line .= unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).PHP_EOL;
+                    $line .= $this->msg->getNested('helpers.preatyline') .PHP_EOL;
                 }
                 $responce[] = $line;
                 $eventsSum += 1;

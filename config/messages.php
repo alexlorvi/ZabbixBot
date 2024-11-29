@@ -19,4 +19,7 @@ return [
             'start' => emoji('satelite').' Ping host...',
         ],
     ],
+    'helpers' => [
+        'preatyline' =>unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796),
+    ],
 ];

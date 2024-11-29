@@ -6,17 +6,17 @@ use Telegram\Bot\Actions;
 use Telegram\Bot\Commands\Command as TgCommand;
 use Telegram\Bot\Exceptions\TelegramOtherException;
 use ZabbixBot\Services\PingService;
-use ZabbixBot\Services\MsgService;
+use ZabbixBot\Services\LangService;
 
 class PingCommand extends TgCommand {
     protected string $name = 'ping';
     protected string $description;
     protected string $pattern = '{host} {count: \d+}';
-    private MsgService $msg;
+    private LangService $msg;
     protected PingService $pingService;
 
     public function __construct() {
-        $this->msg = MsgService::getInstance();
+        $this->msg = LangService::getInstance();
         $this->description = $this->msg->getNested('command.ping.description');
         $this->pingService = new PingService();
     }

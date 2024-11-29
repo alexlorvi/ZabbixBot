@@ -6,7 +6,7 @@ use Telegram\Bot\Api;
 
 use ZabbixBot\Services\ConfigService;
 use ZabbixBot\Services\ZabbixService;
-use ZabbixBot\Services\MsgService;
+use ZabbixBot\Services\LangService;
 use ZabbixBot\UserController;
 use ZabbixBot\CustomHttpClient;
 
@@ -16,7 +16,7 @@ use ZabbixBot\CustomHttpClient;
  */
 
 class BotController {
-    protected Api $tgBot;
+    protected static Api $tgBot;
     protected array $config;
     protected UserController $user;
     protected ZabbixService $zabbixService;
@@ -85,7 +85,7 @@ class BotController {
             is_array($this->config['user_commands'])) {
             
             $this->tgBot->addCommands($this->config['user_commands']);
-            $msg = MsgService::getInstance();
+            $msg = LangService::getInstance();
             $msg->setLang('ua');
         }
 

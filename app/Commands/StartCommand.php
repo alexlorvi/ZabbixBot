@@ -3,15 +3,15 @@
 namespace ZabbixBot\Commands;
 
 use \Telegram\Bot\Commands\Command as TgCommand;
-use ZabbixBot\Services\MsgService;
+use ZabbixBot\Services\LangService;
 
 class StartCommand extends TgCommand {
     protected string $name = 'start';
-    private MsgService $msg;
+    private LangService $msg;
     protected string $description;
 
     public function __construct() {
-        $this->msg = MsgService::getInstance();
+        $this->msg = LangService::getInstance();
         $this->description = $this->msg->getNested('command.start.description');
     }
 
