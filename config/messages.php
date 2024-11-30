@@ -19,6 +19,13 @@ return [
             'start' => emoji('satelite').' Ping host...',
         ],
     ],
+    'user' => [
+        'listEvents' => [
+            'sumLine' => '%s - /ev%s'.PHP_EOL.'%s'.PHP_EOL.'%s'.emoji('preatyline').PHP_EOL,
+            'sumCount' => 'Total open events - %s',
+            'None' => 'You dont have open events',
+        ],
+    ],
     'helpers' => [
         'preatyline' =>unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796),
     ],

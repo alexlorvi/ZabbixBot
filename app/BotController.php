@@ -91,6 +91,9 @@ class BotController {
 
         if (!startsWith($text, '/')) { 
             $reply = ($this->user->isUser()) ? 'Zabbix User said: ':'You said: ';
+            if ($this->user->isUser() && $text = '123') {
+                $this->user->listUserEventsSummary();
+            };
             $reply .= $text;
             $this->tgBot->sendMessage([ 
                 'chat_id' => $chatId, 

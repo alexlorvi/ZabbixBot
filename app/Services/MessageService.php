@@ -3,6 +3,7 @@
 namespace ZabbixBot\Services;
 
 use Telegram\Bot\Api;
+use Telegram\Bot\Actions;
 
 class MessageService {
 
@@ -11,7 +12,12 @@ class MessageService {
         $this->telegram = $tgApi;
     }
 
+    public function chatAction(array $parameters) {
+        $this->telegram->replyWithChatAction($parameters);
+    }
+
     public function sendMessage($chatId,string $message,$options = []) {
+        //$this->telegram->replyWithChatAction(['action' => Actions::TYPING]);
         $preparedMessage = $this->checkMessage($message);
         if (is_array($preparedMessage)) {
             foreach($preparedMessage as $messageline) {

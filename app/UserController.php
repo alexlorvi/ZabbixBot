@@ -7,6 +7,8 @@ use ZabbixBot\Services\LangService;
 use ZabbixBot\Services\ConfigService;
 use ZabbixBot\Services\MessageService;
 use ZabbixBot\Models\User;
+use Telegram\Bot\Actions;
+
 
 class UserController {
     protected ZabbixService $zabbixService;
@@ -68,30 +70,51 @@ class UserController {
         }
     }
 
-    public function userEventsSummary($severity=[5],$group=NULL,$countTotal = true) {
-        $userEvents = $this->zabbixService->getUserProblems($this->user->get('zabbixToken'),$severity);
+    public function listUserEventsSummary($severity=[5],$group=NULL) {
+        $events = $this->getUserEvents($severity,$group);
+
+        if (is_array($events) && count($events)>0) {
+            //$this->messenger->chatAction(['action' => Actions::TYPING]);
+            $message = '';
+            foreach($events as $event) {
+                $format =$this->msg->getNested('user.listEvents.sumLine'); 
+                $reply = sprintf($format,
+                                date('d/m/Y H:i:s',$event['clock']),
+                                $event['eventid'],
+                                $event['hostName']);
+                $message .= $reply.PHP_EOL;
+            }
+            $this->messenger->sendMessage($this->userID,$message);
+            $format =$this->msg->getNested('user.listEvents.sumCount'); 
+            $reply = sprintf($format,count($events));
+            $this->messenger->sendMessage($this->userID,$reply);
+        } else {
+            $this->messenger->sendMessage($this->userID,$this->msg->getNested('user.listEvents.None'));
+        }
+    }
+
+    private function getUserEvents($severity=[5],$group=NULL,$untilTime=NULL) {
+        $userEvents = $this->zabbixService->getUserProblems($this->user->get('zabbixToken'),$severity,$group,$untilTime);
         $responce = [];
         if (is_array($userEvents) && count($userEvents)>0) {
-            $eventsSum = 0;
             foreach($userEvents as $event) {
-                $line = '';
                 if (isset($event['eventid'])) {
                     $eventInfo = $this->zabbixService->getEventInfo($event['eventid']);
-                    $line .= date('d/m/Y H:i:s',$event['clock']);
-                    //$line .= " - ".$eventInfo['hosts']['0']['host']." (".$event['hosts']['0']['name']." )";
-                    //$line .= " - ".$eventInfo['hosts']['0']['host'];
-                    $line .= " - /ev".$event['eventid'].PHP_EOL;
-                    $line .= $eventInfo['hosts']['0']['name'].PHP_EOL;
-                    $line .= $this->msg->getNested('helpers.preatyline') .PHP_EOL;
+                    $responce[] = [
+                        'id' => $event['eventid'],
+                        'name' => $event['name'],
+                        'clock' => $event['clock'],
+                        'hostName' => $eventInfo['hosts']['0']['name'] ?? '',
+                        'hostHost' => $eventInfo['hosts']['0']['host'] ?? '',
+                        'acknowledged' => $eventInfo['acknowledged'] ?? '',
+                        'acknowledges' => $eventInfo['acknowledges'] ?? '',
+                        'tags' => $eventInfo['tags'] ?? '',
+                    ];
                 }
-                $responce[] = $line;
-                $eventsSum += 1;
             }
-            if ($countTotal) $responce[] = 'Total count - '.$eventsSum;
         } else {
-            $responce[] = '';
+            return $responce;
         }
-        return $responce;
     }
 
     public function isUser(){
