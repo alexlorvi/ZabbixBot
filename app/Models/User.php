@@ -14,7 +14,7 @@ class User {
         $this->userID = $userID;
         if (!file_exists(USER_PREF_PATH)) mkdir(USER_PREF_PATH,0777,true);
         $this->userPrefFile = $this->getFilePath();
-        $this->readUserPreference();
+        $this->userPreferences = $this->readUserPreference();
     }
 
     private function getFilePath() {
