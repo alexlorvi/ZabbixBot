@@ -23,6 +23,37 @@ function unichr($i) {
     return iconv('UCS-4LE', 'UTF-8', pack('V', $i));
 }
 
+function splitUnicodeString($string, $maxLength = 4096):array {
+    $chunks = [];
+    $currentChunk = '';
+    // Split the string by lines first
+    $lines = preg_split('/\R/', $string);
+    foreach ($lines as $line) {
+        // If adding this line exceeds the length limit, add the current chunk to the chunks array
+        if (mb_strlen($currentChunk . PHP_EOL . $line) > $maxLength) {
+            $chunks[] = $currentChunk;
+            $currentChunk = '';
+        }
+        // If the line itself is longer than the max length, split it by spaces
+        while (mb_strlen($line) > $maxLength) {
+            // Find the position to split the line
+            $splitPos = mb_strrpos(mb_substr($line, 0, $maxLength + 1), ' ');
+            if ($splitPos === false) {
+                $splitPos = $maxLength;
+            }
+            $chunks[] = mb_substr($line, 0, $splitPos);
+            $line = mb_substr($line, $splitPos + 1);
+        }
+        // Add the line to the current chunk
+        $currentChunk .= ($currentChunk === '' ? '' : PHP_EOL) . $line;
+    }
+    // Add the last chunk if not empty
+    if ($currentChunk !== '') {
+        $chunks[] = $currentChunk;
+    }
+    return $chunks;
+}
+
 /*
  * Simple Functions
  * 
