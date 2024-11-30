@@ -144,7 +144,7 @@ class ZabbixService {
             'selectHosts' => ['host','name'],
             'eventids' => $eventID
           ]);
-        return (is_array($result)) ? $result : null;
+        return (is_array($result[0])) ? $result[0] : null;
     }
 
     public function getGroups($withHosts=true, $userToken=NULL) {

@@ -20,13 +20,23 @@ return [
         ],
     ],
     'user' => [
-        'listEvents' => [
-            'sumLine' => '%s - /ev%s'.PHP_EOL.'%s'.PHP_EOL.'%s'.emoji('preatyline').PHP_EOL,
-            'sumCount' => 'Total open events - %s',
+        'UserEventsSummary' => [
+            'Line' => emoji('clock').'%s - /ev%s'.PHP_EOL.
+                      emoji('pushpin').'%s (%s)'.PHP_EOL.
+                      emoji('preatyline'),
+            'Count' => 'Total open events - %s',
             'None' => 'You dont have open events',
         ],
+        'EventById' => [
+            'Line' => emoji('clock')." %s".PHP_EOL.
+                      emoji('pushpin')." %s".PHP_EOL.'%s'.PHP_EOL.
+                      emoji('preatyline').PHP_EOL.
+                      emoji('page').' %s %s'.PHP_EOL.
+                      emoji('preatyline').PHP_EOL,
+            'ackLine' => emoji('speech').' %s - %s (%s)'.PHP_EOL,
+        ],
     ],
-    'helpers' => [
-        'preatyline' =>unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796),
+    'main' => [
+        'dateSec' => '%a days, %h hours, %i minutes %s seconds',
     ],
 ];

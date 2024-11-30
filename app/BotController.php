@@ -8,6 +8,8 @@ use ZabbixBot\Services\ConfigService;
 use ZabbixBot\UserController;
 use ZabbixBot\CustomHttpClient;
 use ZabbixBot\Services\MessageService;
+use ZabbixBot\Services\LangService;
+use DateTime;
 
 /**
  * Class BotController.
@@ -19,8 +21,11 @@ class BotController {
     protected array $config;
     protected UserController $user;
     protected MessageService $message;
+    protected LangService $msg;
     public function __construct(){
         $this->config = ConfigService::getInstance()->getNested('telegram');
+
+        $this->msg = LangService::getInstance();
 
         $this->tgBot = new Api($this->config['bot_token']);
         if (isset($this->config['proxy'])) {
@@ -73,15 +78,7 @@ class BotController {
         $text = $message->getText(); 
         $this->user->setUserID($chatId);
         userLOG($chatId,'info','> '.$text);
-        /* switch ($text) { 
-            case '/test': 
-                $responseText = 'Welcome to Test bot!'; 
-                break; 
-            default: 
-                $responseText = 'You said: ' . $text; 
-                break; 
-        }  */
-
+ 
         if ($this->user->isUser() &&
             isset($this->config['user_commands']) && 
             is_array($this->config['user_commands'])) {
@@ -89,20 +86,45 @@ class BotController {
             $this->tgBot->addCommands($this->config['user_commands']);
         }
 
-        if (!startsWith($text, '/')) { 
-            $reply = ($this->user->isUser()) ? 'Zabbix User said: ':'You said: ';
-            if ($this->user->isUser() && $text = '123') {
-                $this->user->listUserEventsSummary();
-            };
-            $reply .= $text;
-            $this->tgBot->sendMessage([ 
-                'chat_id' => $chatId, 
-                'text' => $reply,
-                'parse_mode' => 'markdown',
-            ]); 
-            userLOG($chatId,'info','< '.$reply);
+        // Registered User Area
+        if ($this->user->isUser()) {
+            switch (true) {
+                case (str_starts_with($text, '/ev')):
+                    // Command in format /ev{\d+}
+                    $this->user->displayEventById(substr($text, 3));
+                    break;
+                
+                case (str_starts_with($text,'/') &&
+                      str_ends_with($text,'sec')):
+                    $sec = substr($text,strlen('/'),strlen($text)-(strlen('sec')+1));
+                    $dtF = new DateTime('@0');
+                    $dtT = new DateTime("@$sec");
+                    $reply = $dtF->diff($dtT)->format($this->msg->getNested('main.dateSec'));
+                    $this->message->sendMessage($chatId,$reply);
+                    break;
+
+                case ($text == '123'):
+                    $this->user->displayUserEventsSummary();
+                    break;
+
+                case (!str_starts_with($text, '/')):
+                    break;
+
+                case (str_starts_with($text, '/')):
+                    //other commands to the default CommandsHandler
+                    if (is_array($this->tgBot->getCommands()) && 
+                        count($this->tgBot->getCommands())>1) {
+                        $this->tgBot->commandsHandler(true);
+                    };
+                    break;
+            }
+        } 
+        // Guest Area
+        elseif (!str_starts_with($text, '/')) { 
+            // ignore?
         } elseif (is_array($this->tgBot->getCommands()) && count($this->tgBot->getCommands())>1) {
             $this->tgBot->commandsHandler(true);
         }
+
     }
 }

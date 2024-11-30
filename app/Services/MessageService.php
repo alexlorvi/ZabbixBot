@@ -4,6 +4,7 @@ namespace ZabbixBot\Services;
 
 use Telegram\Bot\Api;
 use Telegram\Bot\Actions;
+use Telegram\Bot\Keyboard\Keyboard;
 
 class MessageService {
 
@@ -12,12 +13,12 @@ class MessageService {
         $this->telegram = $tgApi;
     }
 
-    public function chatAction(array $parameters) {
-        $this->telegram->replyWithChatAction($parameters);
+    public function chatActionTyping( $chatID) {
+        $this->telegram->sendChatAction(['chat_id'=>$chatID,'action' => Actions::TYPING]);
     }
 
     public function sendMessage($chatId,string $message,$options = []) {
-        //$this->telegram->replyWithChatAction(['action' => Actions::TYPING]);
+        $this->chatActionTyping($chatId);
         $preparedMessage = $this->checkMessage($message);
         if (is_array($preparedMessage)) {
             foreach($preparedMessage as $messageline) {
@@ -45,8 +46,9 @@ class MessageService {
     }
 
     private function prepareParams(array $params):array {
+        $reply_markup = Keyboard::remove(['selective' => false]);
         $defaultParams = [
-            'reply_markup' => $this->telegram->replyKeyboardMarkup(['remove_keyboard' => true,'selective' => false]),
+            'reply_markup' => $reply_markup,
         ];
         $compare = array_diff($defaultParams,$params);
         return array_merge($compare,$params);
