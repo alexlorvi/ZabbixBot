@@ -119,6 +119,7 @@ class UserController {
 
     private function getUserEvents($severity=[5],$group=NULL,$untilTime=NULL) {
         $userEvents = $this->zabbixService->getUserProblems($this->user->get('zabbixToken'),$severity,$group,$untilTime);
+        userLOG($this->userID,'debug',print_r($userEvents));
         $responce = [];
         if (is_array($userEvents) && count($userEvents)>0) {
             foreach($userEvents as $event) {

@@ -26,7 +26,8 @@ class MessageService {
                     'chat_id' => $chatId, 
                     'text' => $messageline,
                 ],$options));
-                $this->telegram->sendMessage($sendArray);    
+                $this->telegram->sendMessage($sendArray);
+                userLOG($chatId,'info','< '.$messageline);
             }
         } else {
             $sendArray = $this->prepareParams(array_merge([ 
@@ -34,6 +35,7 @@ class MessageService {
                 'text' => $preparedMessage,
             ],$options));
             $this->telegram->sendMessage($sendArray);    
+            userLOG($chatId,'info','< '.$preparedMessage);
         }
     }
 
