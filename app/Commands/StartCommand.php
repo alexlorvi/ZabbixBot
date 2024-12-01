@@ -12,7 +12,7 @@ class StartCommand extends TgCommand {
 
     public function __construct() {
         $this->msg = LangService::getInstance();
-        $this->description = $this->msg->getNested('command.start.description');
+        $this->description = $this->msg->getNested('command.'.$this->name.'.description');
     }
 
     public function handle()
@@ -21,7 +21,7 @@ class StartCommand extends TgCommand {
         $userId = $this->getUpdate()->getMessage()->from->id;
 
         $this->replyWithMessage([
-            'text' => sprintf($this->msg->getNested('command.start.message'),$username,$userId),
+            'text' => sprintf($this->msg->getNested('command.'.$this->name.'.message'),$username,$userId),
             'parse_mode' => 'markdown',
         ]);
     }

@@ -89,13 +89,12 @@ class BotController {
         // Registered User Area
         if ($this->user->isUser()) {
             switch (true) {
-                case (str_starts_with($text, '/ev')):
+                case (preg_match('/^\/ev([0-9])+$/i', $text)):
                     // Command in format /ev{\d+}
                     $this->user->displayEventById(substr($text, 3));
                     break;
                 
-                case (str_starts_with($text,'/') &&
-                      str_ends_with($text,'sec')):
+                case (preg_match('/^\/([0-9])+sec$/i', $text)):
                     $sec = substr($text,strlen('/'),strlen($text)-(strlen('sec')+1));
                     $dtF = new DateTime('@0');
                     $dtT = new DateTime("@$sec");
@@ -103,10 +102,19 @@ class BotController {
                     $this->message->sendMessage($chatId,$reply);
                     break;
 
+                case (preg_match('/^\/([0-9])+h$/i', $text)):
+                    $time = strtotime('-'.substr($text,1,strlen($text)-2).' hour', time());
+                    $this->user->displayUserEventsFull(null,null,$time);
+                    break;
+
                 case ($text == '123'):
                     $this->user->displayUserEventsSummary();
                     break;
 
+                case ($text == '321'):
+                    $this->user->displayUserEventsFull();
+                    break;
+    
                 case (!str_starts_with($text, '/')):
                     break;
 

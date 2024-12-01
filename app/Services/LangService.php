@@ -44,11 +44,11 @@ class LangService {
         return self::$instance;
     }
 
-    public function get($key,$default = null):mixed {
+    public function get($key,$default = ''):mixed {
         return $this->messages[$this->currentLanguage][$key] ?? $this->messages[$this->defaultName][$key] ?? $default;
     }
 
-    public function getNested($path, $default = null):mixed {
+    public function getNested($path, $default = ''):mixed {
         return getNestedFromArray($this->messages[$this->currentLanguage],$path, getNestedFromArray($this->messages[$this->defaultName],$path, $default));
     }
 

@@ -17,7 +17,7 @@ class PingCommand extends TgCommand {
 
     public function __construct() {
         $this->msg = LangService::getInstance();
-        $this->description = $this->msg->getNested('command.ping.description');
+        $this->description = $this->msg->getNested('command.'.$this->name.'.description');
         $this->pingService = new PingService();
     }
     public function handle()
@@ -30,7 +30,7 @@ class PingCommand extends TgCommand {
 
         if (!$host) {
             try { 
-                $reply = $this->msg->getNested('command.ping.usage');
+                $reply = $this->msg->getNested('command.'.$this->name.'.usage');
                 $message = $this->replyWithMessage([
                     'text' => $reply,
                     'parse_mode' => 'markdown',

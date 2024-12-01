@@ -69,6 +69,35 @@ class UserController {
         }
     }
 
+    public function displayUserEventsFull($severity=[5],$group=NULL,$untilTime=NULL) {
+        $events = $this->getUserEvents($severity,$group);
+        if (is_array($events) && count($events)>0) {
+            $this->messenger->chatActionTyping($this->userID);
+            foreach($events as $event) {
+                $format =$this->msg->getNested('user.UserEventsFull.Line');
+                $reply = sprintf($format,
+                        date('d/m/Y H:i:s',$event['clock']),
+                        $event['hostName'],
+                        $event['hostHost'],
+                        $event['name'],
+                        $event['acknowledged'] ? unichr(0x2705) : "");
+                $format =$this->msg->getNested('user.UserEventsFull.ackLine');
+                foreach($event['acknowledges'] as $acknowledge) {
+                    $reply .= sprintf($format,
+                              date('d/m/Y H:i:s',$acknowledge['clock']),
+                                 $acknowledge['message'],
+                                 $acknowledge['username']);
+                }
+                $this->messenger->sendMessage($this->userID,$reply);
+            }
+            $format =$this->msg->getNested('user.UserEventsFull.Count'); 
+            $reply = sprintf($format,count($events));
+            $this->messenger->sendMessage($this->userID,$reply);
+        } else {
+            $this->messenger->sendMessage($this->userID,$this->msg->getNested('user.UserEventsFull.None'));
+        }
+    }
+
     public function displayUserEventsSummary($severity=[5],$group=NULL) {
         $events = $this->getUserEvents($severity,$group);
 

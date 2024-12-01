@@ -13,7 +13,7 @@ class HelpCommand extends Command {
 
     public function __construct() {
         $this->msg = LangService::getInstance();
-        $this->description = $this->msg->getNested('command.help.description');
+        $this->description = $this->msg->getNested('command.'.$this->name.'.description');
     }
 
     public function handle()
