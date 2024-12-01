@@ -26,11 +26,11 @@ return [
                        'Availiable aliases predefined in config:'.PHP_EOL,
         ],
         'menu' => [
-            'description' => 'Inline menu keyboard',
-            'message' => 'Виберіть потрібну опцію:',
+            'description' => 'Menu keyboard',
+            'message' => 'Choose Your report:',
             'menu' => [
-                [unichr(0x1F4D6)." Деталізація активних"],
-                [unichr(0x1F4CB)." Список активних"],
+                [unichr(0x1F4D6)." Full Report"],
+                [unichr(0x1F4CB)." Summary Report"],
             ]    
         ]
     ],

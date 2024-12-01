@@ -8,17 +8,36 @@ return [
         'webhook_url' => '',
         // if specified, system search messages.$lang.php, if not specified or not exist, try to use messages.php
         'lang' => 'en',
+        // if proxy specified as string (for all) or array (for custom usage)
+        // controler connect CustomHttpClient, that has proxy implementation
+        // !!! not uncomment unless You know what You do !!!
+        //'proxy' => 'http://proxy:port',
+        // OR
+        //'proxy' => [
+        //    'http'  => 'http://localhost:8125', // Use this proxy with "http"
+        //    'https' => 'http://localhost:9124', // Use this proxy with "https",
+        //    'no' => ['.mit.edu', 'foo.com']    // Don't use a proxy with these
+        //],
         'commands' => [
             ZabbixBot\Commands\StartCommand::class,
             ZabbixBot\Commands\HelpCommand::class,
         ],
         'user_commands' => [
             ZabbixBot\Commands\PingCommand::class,
+            ZabbixBot\Commands\GroupEventsCommand::class,
+            ZabbixBot\Commands\MenuCommand::class,
         ],
     ],
     'zabbix' => [
         'host' => '',
         'apikey' => '',
+        // may be couple groups, but alias wont work with underscore names
+        'groups' => [
+            [
+                'name' => 'Zabbix',
+                'aliases' => ['zabbix','zabbixList','zabbixFull'],
+            ],
+        ],
     ],
     'logger' => [
         'file_path' => LOG_PATH,
@@ -32,5 +51,10 @@ return [
     'emoji' => [
         'warn' => "\xE2\x9A\xA0",
         'satelite' => "\xF0\x9F\x93\xA1",
+        'clock' => unichr(0x23F0),
+        'page' => unichr(0x1F4C4),
+        'pushpin' => unichr(0x1F4CC),
+        'speech' => unichr(0x1F4AC),
+        'preatyline' =>unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796).unichr(0x2796),
     ],
 ];
