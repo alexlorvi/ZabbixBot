@@ -88,6 +88,7 @@ class BotController {
 
         // Registered User Area
         if ($this->user->isUser()) {
+            $menu = $this->msg->getNested('command.menu.menuaction') ?? [] ;
             switch (true) {
                 case (preg_match('/^\/ev([0-9])+$/i', $text)):
                     // Command in format /ev{\d+}
@@ -95,6 +96,7 @@ class BotController {
                     break;
                 
                 case (preg_match('/^\/([0-9])+sec$/i', $text)):
+                    // Command in format /{\d+}sec
                     $sec = substr($text,strlen('/'),strlen($text)-(strlen('sec')+1));
                     $dtF = new DateTime('@0');
                     $dtT = new DateTime("@$sec");
@@ -103,19 +105,25 @@ class BotController {
                     break;
 
                 case (preg_match('/^\/([0-9])+h$/i', $text)):
+                    // Command in format /{\d+}h. Old preset /24h /72h
                     $time = strtotime('-'.substr($text,1,strlen($text)-2).' hour', time());
                     $this->user->displayUserEventsFull(null,null,$time);
                     break;
 
-                case ($text == '123'):
+                /* case ($text == '123'):
                     $this->user->displayUserEventsSummary();
                     break;
 
                 case ($text == '321'):
                     $this->user->displayUserEventsFull();
+                    break; */
+                case (array_key_exists($text,$menu)):
+                    $this->message->sendMessage($chatId,'Menu option');
+                    $this->checkKeyboard($text);
                     break;
     
                 case (!str_starts_with($text, '/')):
+                    //another text formats
                     break;
 
                 case (str_starts_with($text, '/')):
@@ -134,5 +142,14 @@ class BotController {
             $this->tgBot->commandsHandler(true);
         }
 
+    }
+
+    private function checkKeyboard(string $text) {
+        $menuActions = $this->msg->getNested('command.menu.menuaction');
+        if (isset($menuActions[$text])) {
+            $action = $menuActions[$text];
+            //call_user_func_array([$controller, $action['method']], $action['params']);
+            call_user_func_array([$this->user, $action['method']],$action['params']);
+        }
     }
 }

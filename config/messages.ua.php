@@ -29,9 +29,21 @@ return [
             'description' => 'Клавіатура вибору базових звітів',
             'message' => 'Виберіть потрібну опцію:',
             'menu' => [
-                [unichr(0x1F4D6)." Деталізація активних"],
-                [unichr(0x1F4CB)." Список активних"],
-            ]    
+                [unichr(0x1F4D6).' Деталізація активних'],
+                [unichr(0x1F4CB).' Список активних'],
+            ],
+            'menuaction' => [
+                unichr(0x1F4D6).' Деталізація активних' => [
+                    //'class' => '',
+                    'method' => 'displayUserEventsFull',
+                    'params' => [],
+                ],
+                unichr(0x1F4CB).' Список активних' => [
+                    //'class' => '',
+                    'method' => 'displayUserEventsSummary',
+                    'params' => [],
+                ],
+            ],
         ]
     ],
     'user' => [
