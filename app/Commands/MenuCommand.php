@@ -24,8 +24,6 @@ class MenuCommand extends Command {
 
         $reply_markup = Keyboard::make()->setResizeKeyboard(true)->setOneTimeKeyboard(true);
         foreach($menu as $row) {
-            //$buttons = array_map(fn($button) => Button::make(['text' => $button]), $row);
-            //$reply_markup->row($buttons);
             $reply_markup->row($row);
         }
 
@@ -34,18 +32,5 @@ class MenuCommand extends Command {
             'reply_markup' => $reply_markup,
         ]);
 
-        /* $reply_markup = Keyboard::make()
-		->setResizeKeyboard(true)
-		->setOneTimeKeyboard(true)
-		->row([
-			Keyboard::button('1'),
-			Keyboard::button('2'),
-			Keyboard::button('3'),
-        ]);
-
-        $this->replyWithMessage([
-            'text' => $reply,
-            'reply_markup' => $reply_markup,
-        ]) */
     }
 }

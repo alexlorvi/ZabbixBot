@@ -50,7 +50,7 @@ class UserController {
         userLOG($this->userID,'info','Preference Token not exist. Get it for Zabbix user #'.$zbxUserId);
         if (isset($zbxUserId)) {
             $zbxTokenId = $this->zabbixService->getUserToken($zbxUserId);
-            if (!isset($zbxTokenId)) {
+            if (!isset($zbxTokenId) || empty($zbxTokenId)) {
                 $zbxTokenId = $this->zabbixService->createUserToken($zbxUserId);
                 userLOG($this->userID,'info','Token ID not exist on Zabbix server. Create new - '.$zbxTokenId);
             } else {
@@ -70,6 +70,10 @@ class UserController {
     }
 
     public function displayUserEventsFull($severity=[5],$group=NULL,$untilTime=NULL) {
+        if (!isset($this->userID)) {
+            userLOG($this->userID,'error','Call displayUserEventsFull, but User ID not defined.');
+            exit;
+        }
         $events = $this->getUserEvents($severity,$group);
         if (is_array($events) && count($events)>0) {
             $this->messenger->chatActionTyping($this->userID);
@@ -99,6 +103,10 @@ class UserController {
     }
 
     public function displayUserEventsSummary($severity=[5],$group=NULL) {
+        if (!isset($this->userID)) {
+            userLOG($this->userID,'error','Call displayUserEventsSummary, but User ID not defined.');
+            exit;
+        }
         $events = $this->getUserEvents($severity,$group);
 
         if (is_array($events) && count($events)>0) {
@@ -147,7 +155,12 @@ class UserController {
     }
 
     private function getUserEvents($severity=[5],$group=NULL,$untilTime=NULL) {
-        $userEvents = $this->zabbixService->getUserProblems($this->user->get('zabbixToken'),$severity,$group,$untilTime);
+        $userToken = $this->user->get('zabbixToken');
+        if (!isset($userToken)) {
+            userLOG($this->userID,'error','Call getUserEvents, but zabbixToken not exists.');
+            exit;
+        }
+        $userEvents = $this->zabbixService->getUserProblems($userToken,$severity,$group,$untilTime);
         userLOG($this->userID,'debug',print_r($userEvents));
         $responce = [];
         if (is_array($userEvents) && count($userEvents)>0) {
