@@ -17,10 +17,8 @@ class RetryMessagesCommand extends Command
 
     private $messageService;
 
-    public function __construct(MessageService $messageService)
-    {
+    public function __construct(MessageService $messageService) {
         parent::__construct();
-
         $this->messageService = $messageService;
     }
 

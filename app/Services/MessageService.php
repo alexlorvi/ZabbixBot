@@ -70,6 +70,10 @@ class MessageService {
         }
     }
 
+    public function getMessageQueueSize() {
+        return $this->messageQueue->getQueueSize();
+    }
+    
     private function checkMessage(string $message):string|array {
         if (mb_strlen($message,'UTF-8') > 4096) {
             return splitUnicodeString($message);
