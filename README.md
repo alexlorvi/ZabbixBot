@@ -15,7 +15,7 @@ Telegram-бот для моніторингу Zabbix: авторизовані �
 - `/events` (або аліаси групи з `config.zabbix.groups`, напр. `/zabbix`, `/zabbixList`, `/zabbixFull`) — відкриті проблеми по групі.
 - `/menu` — панель швидкого доступу (повний/короткий звіт, довідка, налаштування); вигляд залежить від персонального налаштування "стиль меню" — inline-кнопки (за замовчуванням) або звичайна клавіатура.
 - `/host <IP або частина імені>` — пошук хоста: якщо збіг один — картка хоста (стан, інтерфейси, активні проблеми, кнопки Ping/Cisco/APC); якщо кілька — список inline-кнопок для вибору.
-- `/reset` — **лише для адмінів** (`config.telegram.admins`): скидає кеш списку Zabbix-користувачів і груп.
+- `/reset` — **лише для адмінів**: скидає кеш списку Zabbix-користувачів і груп. Адмінство визначається членством у Zabbix-групі (`config.zabbix.admin_group`), а не окремим списком chat id.
 - `/cisco <IP>` — стан портів Cisco-свіча через SNMP (`commands/get_Int_status_cisco2.sh`).
 - `/apc <IP>` — діагностика карти керування APC (ping + SNMP + перевірка портів).
 - `/settings` — особиста панель налаштувань (див. нижче), керується виключно inline-кнопками з редагуванням одного повідомлення.
@@ -57,14 +57,21 @@ cp config/config.php.sample config/config.php
 
 Далі відкрийте `config/config.php` і заповніть реальні значення (бот-токен, Zabbix host/apikey тощо) — див. розділ нижче.
 
+## Перед запуском нових команд
+
+`/reset`, `/cisco`, `/apc` щойно додані в `telegram.user_commands`, але потребують реальних значень у `config/config.php` (локальний, гітігнорений файл — позначено `TODO` прямо в коментарях):
+- [ ] `zabbix.admin_group` — зараз placeholder `'Zabbix Administrators'`. Поки не підставите реальну назву групи з вашого Zabbix, `/reset` не пропустить нікого (навіть реальних адмінів).
+- [ ] `net.snmp_community_cisco` — зараз порожньо. Без цього `/cisco` завжди повертатиме помилку.
+- [ ] `net.snmp_community_apc` — стоїть дефолт `'public'`, перевірте, чи це дійсно community вашої інфраструктури.
+
 ## Куди вносити налаштування
 
 **Усі налаштування — у `config/config.php`** (реальний, гітігнорений файл; `config/config.php.sample` — шаблон з коментарями, завжди синхронізуйте структуру, коли додаєте нові ключі). Файл повертає один масив з секціями:
 
 | Секція | Що там |
 |---|---|
-| `telegram` | `bot_token`, `webhook_url`, опційно `webhook_secret` і `rate_limit`, `lang` (мова за замовчуванням для нових користувачів), опційно `proxy`, списки команд `commands`/`user_commands`, `admins` (chat id адмінів для `/reset`) |
-| `zabbix` | `host`, `apikey` (сервісний ключ — зараз потребує й прав на `user.update`, див. вище), `user_token_ttl_days`, опційно `token_key` (base64 32 байти для шифрування токенів), `groups` (аліаси для `/events`) |
+| `telegram` | `bot_token`, `webhook_url`, опційно `webhook_secret` і `rate_limit`, `lang` (мова за замовчуванням для нових користувачів), опційно `proxy`, списки команд `commands`/`user_commands` |
+| `zabbix` | `host`, `apikey` (сервісний ключ — потребує й прав на `user.update`, див. вище), `admin_group` (назва групи Zabbix, чиї учасники — адміни бота для `/reset`), `user_token_ttl_days`, опційно `token_key` (base64 32 байти для шифрування токенів), `groups` (аліаси для `/events`) |
 | `net` | `snmp_community_cisco`, `snmp_community_apc` — для `/cisco` і `/apc` |
 | `logger` | шлях, рівні логування, `keep_days` (ротація) |
 | `emoji` | емодзі, що використовуються в текстах повідомлень |

@@ -38,16 +38,15 @@ return [
             ZabbixBot\Commands\ApcCommand::class,
             ZabbixBot\Commands\SettingsCommand::class,
         ],
-        // Chat ID-и, яким дозволені адмінські команди (/reset)
-        'admins' => [
-            //'123456789',
-        ],
     ],
     'zabbix' => [
         'host' => '',
         // Потребує прав на user.update (редагування чужих user-об'єктів) - потрібно для /settings
         // (зміна severity в media інших Zabbix-користувачів через сервісний ключ, не особистий токен).
         'apikey' => '',
+        // Назва групи користувачів у Zabbix, чиї учасники вважаються адмінами бота (/reset).
+        // Джерело правди - Zabbix, окремого списку chat id в конфізі немає.
+        'admin_group' => 'Zabbix Administrators',
         // Термін дії персонального Zabbix API-токена користувача (дні). 0 - без терміну.
         'user_token_ttl_days' => 90,
         // Base64 від 32 байт (sodium secretbox) для шифрування tokens/<chat_id>.key.

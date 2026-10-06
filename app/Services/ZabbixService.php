@@ -40,6 +40,7 @@ class ZabbixService {
         $users = $this->request('user.get',[
             'output'=>['userid', 'username','name','surname'],
             'selectMedias'=>['mediatypeid','sendto','active','severity'],
+            'selectUsrgrps'=>['name'],
             'mediatypeids'=>$mediaTypeId,
         ]);
         if (!is_array($users)) {
@@ -56,6 +57,7 @@ class ZabbixService {
                         'name' => (string)($user['name'] ?? ''),
                         'surname' => (string)($user['surname'] ?? ''),
                         'severity' => (string)($media['severity'] ?? ''),
+                        'usrgrps' => array_column((array)($user['usrgrps'] ?? []), 'name'),
                     ];
                 }
             }
@@ -64,9 +66,22 @@ class ZabbixService {
         return $map;
     }
 
-    /** @return array<string,string>|null */
+    /** @return array<string,mixed>|null */
     public function findUser(string $userID): ?array {
         return ($this->telegramUsers() ?? [])[$userID] ?? null;
+    }
+
+    /**
+     * Чи входить Zabbix-користувач (за chat id) у групу адмінів бота (config: zabbix.admin_group).
+     * Членство в групі - єдине джерело правди для адмінських команд (/reset), без окремого списку в конфізі.
+     */
+    public function isAdmin(string $chatId): bool {
+        $adminGroup = (string)ConfigService::getInstance()->getNested('zabbix.admin_group', '');
+        if ($adminGroup === '') {
+            return false;
+        }
+        $user = $this->findUser($chatId);
+        return $user !== null && in_array($adminGroup, $user['usrgrps'] ?? [], true);
     }
 
     public function resetUserCache(): void {

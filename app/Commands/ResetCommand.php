@@ -3,7 +3,6 @@
 namespace ZabbixBot\Commands;
 
 use \Telegram\Bot\Commands\Command;
-use ZabbixBot\Services\ConfigService;
 use ZabbixBot\Services\LangService;
 use ZabbixBot\Services\MessageService;
 use ZabbixBot\Services\ZabbixService;
@@ -24,8 +23,7 @@ class ResetCommand extends Command {
         $chatId = $this->getUpdate()->getMessage()->getChat()->getId();
         $messenger = new MessageService($this->getTelegram());
 
-        $admins = array_map('strval', (array)ConfigService::getInstance()->getNested('telegram.admins', []));
-        if (!in_array((string)$chatId, $admins, true)) {
+        if (!$this->zbx->isAdmin((string)$chatId)) {
             $messenger->sendMessage($chatId, 'Га?');
             return;
         }
