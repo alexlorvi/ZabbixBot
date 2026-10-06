@@ -63,6 +63,14 @@ class BotController {
         return $responce . ': WebHook -> '. $this->config['webhook_url'];
     }
 
+    public function getWebhookInfo(): array {
+        return $this->tgBot->getWebhookInfo()->toArray();
+    }
+
+    public function deleteWebhook(): string {
+        return $this->tgBot->deleteWebhook() ? 'SUCCESS: WebHook deleted' : 'ERROR';
+    }
+
     public function handleWebhook():void {
         $secret = (string)($this->config['webhook_secret'] ?? '');
         if ($secret !== '' && !hash_equals($secret, (string)($_SERVER['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN'] ?? ''))) {

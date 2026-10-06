@@ -21,13 +21,14 @@ Run the webhook entry point (normally invoked by the web server, not directly):
 php index.php
 ```
 
-Register the Telegram webhook (uncomment the CLI block in `index.php`, or call `BotController::registerHook()` another way). If `telegram.webhook_secret` is set in config, it must already be set *before* re-registering, otherwise Telegram's old webhook registration won't send the secret and the bot will reply 403 to every update.
+Register/inspect/remove the Telegram webhook via CLI (`app:webhook`, wraps `BotController::registerHook()`/`getWebhookInfo()`/`deleteWebhook()`; `index.php` itself has no CLI branch anymore). If `telegram.webhook_secret` is set in config, it must already be set *before* re-running `app:webhook set`, otherwise Telegram's old webhook registration won't send the secret and the bot will reply 403 to every update.
 
 CLI console app (`console.php`):
 ```
 php console.php app:retry-messages --limit=5     # drain the failed-message queue
 php console.php app:send-message <chatId> "text" # send an ad-hoc message
 php console.php app:top200-sync                   # sync the TOP200 Zabbix host group (cron)
+php console.php app:webhook set|info|del          # register/inspect/remove the Telegram webhook
 ```
 
 Tests (PHPUnit, no network calls):
@@ -81,6 +82,6 @@ Carried over from `temp/TODO.md`, not yet implemented — scope them individuall
 - An outbound "send alarm" API with reply-to-recover: track the Telegram `message_id` of a sent alert so a user's reply to it can be matched back to the original event. Needs a new small file-based store (same pattern as `TokenStore`) and a new branch in `BotController` to inspect `message.reply_to_message`.
 - ScriptServer integration: external system, config shape (URL/auth/script name/params) not yet specified — needs clarification before implementation.
 
-Known minor gaps from the zbx-bot-prod port (low priority, not blocking): `ZabbixService::request()` re-authenticates on every call instead of caching the login like the old client did when the token is unchanged; there's no CLI equivalent of the old client's `webhook info`/`webhook del` actions (only registration, via `BotController::registerHook()`). `BotController`'s webhook dispatch also has no automated test coverage (webhook secret check, dedup, rate limit, admin-only routing) — the old client's equivalent tests relied on an injectable Transport interface that the SDK-based dispatch here doesn't have.
+Known minor gaps from the zbx-bot-prod port (low priority, not blocking): `ZabbixService::request()` re-authenticates on every call instead of caching the login like the old client did when the token is unchanged. `BotController`'s webhook dispatch also has no automated test coverage (webhook secret check, dedup, rate limit, admin-only routing) — the old client's equivalent tests relied on an injectable Transport interface that the SDK-based dispatch here doesn't have. (The CLI gap for `webhook info`/`del` is closed — see `app:webhook` above.)
 
 Pending human input in the local `config/config.php` (gitignored, marked with `TODO` comments in the file itself — not visible to anyone who doesn't open it): `zabbix.admin_group` is still the placeholder `'Zabbix Administrators'` (so `/reset` currently rejects everyone), and `net.snmp_community_cisco` is empty (so `/cisco` currently always errors). `config/config.php.sample` is the structural source of truth — when adding a new config key or registering a new command class, add it there too, otherwise `config.php` silently drifts out of sync (this happened once already: `/host`, `/reset`, `/cisco`, `/apc`, `/settings` existed in code but weren't in the real `user_commands` list until caught manually).

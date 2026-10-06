@@ -39,6 +39,7 @@ Telegram-бот для моніторингу Zabbix: авторизовані �
 php console.php app:retry-messages --limit=5     # повторно відправити повідомлення з черги (якщо був збій проксі/мережі)
 php console.php app:send-message <chatId> "text" # разова відправка довільного повідомлення
 php console.php app:top200-sync                  # синхронізувати групу TOP200 з WogRouters (для cron)
+php console.php app:webhook set|info|del         # керування Telegram-вебхуком, див. розділ нижче
 ```
 
 ## Вимоги
@@ -80,26 +81,22 @@ cp config/config.php.sample config/config.php
 
 ## Робота з вебхуком
 
-Бот — вебхук-бот: Telegram сам стукає на `index.php` при кожному вхідному update. Потрібен публічний HTTPS-URL, що веде на `index.php` (`telegram.webhook_url` у конфізі має збігатися з реальним URL).
+Бот — вебхук-бот: Telegram сам стукає на `index.php` при кожному вхідному update. Потрібен публічний HTTPS-URL, що веде на `index.php` (`telegram.webhook_url` у конфізі має збігатися з реальним URL). Усе керування вебхуком — через CLI-команду `app:webhook` (`console.php`), `index.php` сам по собі нічого не реєструє й не видаляє.
 
-**Реєстрація/перереєстрація вебхука:**
+```
+php console.php app:webhook set    # зареєструвати/перереєструвати вебхук на telegram.webhook_url
+php console.php app:webhook info   # поточний стан: url, pending_update_count, остання помилка доставки тощо
+php console.php app:webhook del    # видалити вебхук (бот перестає отримувати update)
+```
+
+**Реєстрація/перереєстрація:**
 1. Заповніть `telegram.bot_token` і `telegram.webhook_url` у `config/config.php`.
 2. (Опційно, рекомендовано) Задайте `telegram.webhook_secret` — випадковий рядок; Telegram повертатиме його в заголовку `X-Telegram-Bot-Api-Secret-Token`, і бот перевірятиме це при кожному update (403 при невідповідності) — захист від підробних запитів на ваш URL.
-3. У `index.php` розкоментуйте блок реєстрації:
-   ```php
-   if (php_sapi_name() == 'cli') {
-       echo $app->registerHook();
-       die();
-   }
-   ```
-   Він безпечний лишати розкоментованим постійно — спрацьовує тільки при запуску з CLI (`php_sapi_name() == 'cli'`), через веб-сервер (HTTP) ніколи не виконається.
-4. Виконайте `php index.php` з консолі — виведе `SUCCESS: WebHook -> <url>` або `ERROR`.
+3. `php console.php app:webhook set` — виведе `SUCCESS: WebHook -> <url>` або `ERROR`.
 
-⚠️ **Порядок важливий**: якщо вмикаєте `webhook_secret` на вже зареєстрованому вебхуку — спершу додайте ключ у конфіг, потім перереєструйте (крок 4). Інакше бот почне відповідати 403 на всі запити, бо Telegram ще не знає про секрет.
+⚠️ **Порядок важливий**: якщо вмикаєте `webhook_secret` на вже зареєстрованому вебхуку — спершу додайте ключ у конфіг, потім виконайте `app:webhook set` знову. Інакше бот почне відповідати 403 на всі запити, бо Telegram ще не знає про секрет.
 
-**Перевірити стан або видалити вебхук:** окремої CLI-команди для цього в проєкті поки нема (лише реєстрація через `registerHook()`). За потреби — `getWebhookInfo`/`deleteWebhook` можна викликати напряму через Telegram Bot API (`https://api.telegram.org/bot<TOKEN>/getWebhookInfo`), не публікуючи `bot_token` з відповіді нікуди, де його побачать треті особи.
-
-**Локальна розробка:** без публічного HTTPS Telegram не достукається до `index.php` — для локального тестування потрібен тунель (ngrok тощо) з HTTPS-URL, прописаним у `webhook_url` перед реєстрацією.
+**Локальна розробка:** без публічного HTTPS Telegram не достукається до `index.php` — для локального тестування потрібен тунель (ngrok тощо) з HTTPS-URL, прописаним у `webhook_url` перед `app:webhook set`.
 
 ## Розробка
 

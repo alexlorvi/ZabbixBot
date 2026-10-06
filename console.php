@@ -8,6 +8,7 @@ use Symfony\Component\Console\Application;
 use ZabbixBot\Commands\CLI\RetryMessagesCommand;
 use ZabbixBot\Commands\CLI\SendMessagesCommand;
 use ZabbixBot\Commands\CLI\Top200SyncCommand;
+use ZabbixBot\Commands\CLI\WebhookCommand;
 use ZabbixBot\CustomHttpClient;
 use ZabbixBot\Services\ConfigService;
 use ZabbixBot\Services\MessageService;
@@ -40,6 +41,7 @@ $application = new Application();
 $application->add(new RetryMessagesCommand($messageService));
 $application->add(new SendMessagesCommand($messageService));
 $application->add(new Top200SyncCommand(new ZabbixService()));
+$application->add(new WebhookCommand());
 
 // Run the application
 $application->run();
@@ -50,4 +52,5 @@ $application->run();
 /// php console.php app:retry-messages --limit=5
 /// php console.php app:send-message <chatId> "<message>"
 /// php console.php app:top200-sync
+/// php console.php app:webhook set|info|del
 ///
