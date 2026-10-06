@@ -6,6 +6,8 @@ use ZabbixBot\Services\ZabbixService;
 use ZabbixBot\Services\LangService;
 use ZabbixBot\Services\ConfigService;
 use ZabbixBot\Services\MessageService;
+use ZabbixBot\Services\TokenStore;
+use ZabbixBot\Services\UserTokens;
 use ZabbixBot\Models\User;
 
 
@@ -13,6 +15,7 @@ class UserController {
     protected ZabbixService $zabbixService;
     protected LangService $msg;
     protected MessageService $messenger;
+    protected UserTokens $userTokens;
     protected int $userID;
     protected bool $isZabbixUser = false;
     protected User $user;
@@ -21,6 +24,14 @@ class UserController {
         $this->messenger = $message;
         $this->zabbixService = new ZabbixService();
         $this->msg = LangService::getInstance();
+
+        $cfg = ConfigService::getInstance();
+        $this->userTokens = new UserTokens(
+            new TokenStore(TOKEN_PATH, $cfg->getNested('zabbix.token_key')),
+            $this->zabbixService,
+            (int)$cfg->getNested('zabbix.user_token_ttl_days', 90),
+        );
+
         if (isset($userID)) $this->setUserID($userID);
     }
 
@@ -32,11 +43,8 @@ class UserController {
     }
 
     private function userPrepare(){
-        $userToken = $this->user->get('zabbixToken');
-        if (!isset($userToken)) $this->userApiTokenGeneration();
-
         $userLang = $this->user->get('lang');
-        if (!isset($userToken)) {
+        if (!isset($userLang)) {
             $cfg = ConfigService::getInstance();
             $this->user->set('lang',$cfg->getNested('telegram.lang'));
             $this->user->writeUserPreference();
@@ -45,28 +53,18 @@ class UserController {
         }
     }
 
-    private function userApiTokenGeneration() {
+    /** Персональний API-токен Zabbix користувача: зі сховища, або випускається/оновлюється на льоту. */
+    public function getUserToken(): ?string {
         $zbxUserId = $this->zabbixService->getUserID($this->userID);
-        userLOG($this->userID,'info','Preference Token not exist. Get it for Zabbix user #'.$zbxUserId);
-        if (isset($zbxUserId)) {
-            $zbxTokenId = $this->zabbixService->getUserToken($zbxUserId);
-            if (!isset($zbxTokenId) || empty($zbxTokenId)) {
-                $zbxTokenId = $this->zabbixService->createUserToken($zbxUserId);
-                userLOG($this->userID,'info','Token ID not exist on Zabbix server. Create new - '.$zbxTokenId);
-            } else {
-                userLOG($this->userID,'info','Found Token ID on Zabbix server - '.$zbxTokenId);
-            }
-            $userToken = $this->zabbixService->generateUserToken($zbxTokenId);
-            if (($userToken) && (strlen($userToken)==64)) {
-                $this->user->set('zabbixToken',$userToken);
-                userLOG($this->userID,'info','New API Token Generated. '.$userToken);
-                $this->user->writeUserPreference();
-            } else {
-                userLOG($this->userID,'error','New API Token Generation failed. '.$userToken);
-            }
-        } else {
+        if (!isset($zbxUserId)) {
             userLOG($this->userID,'error','Zabbix ID not found.');
+            return null;
         }
+        $token = $this->userTokens->tokenFor((string)$this->userID, ['userid' => $zbxUserId]);
+        if ($token === null) {
+            userLOG($this->userID,'error','Не вдалося отримати API-токен Zabbix.');
+        }
+        return $token;
     }
 
     public function displayUserEventsFull($severity=[5],$group=NULL,$untilTime=NULL) {
@@ -77,6 +75,7 @@ class UserController {
         $events = $this->getUserEvents($severity,$group);
         if (is_array($events) && count($events)>0) {
             $this->messenger->chatActionTyping($this->userID);
+            $blocks = [];
             foreach($events as $event) {
                 $format =$this->msg->getNested('user.UserEventsFull.Line');
                 $reply = sprintf($format,
@@ -92,9 +91,10 @@ class UserController {
                                  $acknowledge['message'],
                                  $acknowledge['username']);
                 }
-                $this->messenger->sendMessage($this->userID,$reply);
+                $blocks[] = $reply;
             }
-            $format =$this->msg->getNested('user.UserEventsFull.Count'); 
+            $this->messenger->sendBlocks($this->userID,$blocks);
+            $format =$this->msg->getNested('user.UserEventsFull.Count');
             $reply = sprintf($format,count($events));
             $this->messenger->sendMessage($this->userID,$reply);
         } else {
@@ -155,9 +155,8 @@ class UserController {
     }
 
     private function getUserEvents($severity=[5],$group=NULL,$untilTime=NULL) {
-        $userToken = $this->user->get('zabbixToken');
+        $userToken = $this->getUserToken();
         if (!isset($userToken)) {
-            userLOG($this->userID,'error','Call getUserEvents, but zabbixToken not exists.');
             exit;
         }
         $userEvents = $this->zabbixService->getUserProblems($userToken,$severity,$group,$untilTime);

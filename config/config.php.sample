@@ -6,6 +6,12 @@ return [
         'bot_token' => '',
         // Bot WebHook
         'webhook_url' => '',
+        // Secret token Telegram sends back in X-Telegram-Bot-Api-Secret-Token header.
+        // Set it here AND pass it to setWebhook (see registerHook()) - order matters,
+        // otherwise the bot will reply 403 to a webhook not yet re-registered with the secret.
+        //'webhook_secret' => 'random-A-Za-z0-9_-',
+        // [max requests, window in seconds] per chat; unset falls back to [30, 60]
+        //'rate_limit' => [30, 60],
         // if specified, system search messages.$lang.php, if not specified or not exist, try to use messages.php
         'lang' => 'en',
         // if proxy specified as string (for all) or array (for custom usage)
@@ -26,11 +32,24 @@ return [
             ZabbixBot\Commands\PingCommand::class,
             ZabbixBot\Commands\GroupEventsCommand::class,
             ZabbixBot\Commands\MenuCommand::class,
+            ZabbixBot\Commands\HostCommand::class,
+            ZabbixBot\Commands\ResetCommand::class,
+            ZabbixBot\Commands\CiscoCommand::class,
+            ZabbixBot\Commands\ApcCommand::class,
+        ],
+        // Chat ID-и, яким дозволені адмінські команди (/reset)
+        'admins' => [
+            //'123456789',
         ],
     ],
     'zabbix' => [
         'host' => '',
         'apikey' => '',
+        // Термін дії персонального Zabbix API-токена користувача (дні). 0 - без терміну.
+        'user_token_ttl_days' => 90,
+        // Base64 від 32 байт (sodium secretbox) для шифрування tokens/<chat_id>.key.
+        // Без нього токени зберігаються нешифрованими (лише права 0600).
+        //'token_key' => '',
         // may be couple groups, but alias wont work with underscore names
         'groups' => [
             [
@@ -39,11 +58,18 @@ return [
             ],
         ],
     ],
+    'net' => [
+        // Community-рядки для SNMP-діагностики (/cisco, /apc)
+        'snmp_community_cisco' => '',
+        'snmp_community_apc' => 'public',
+    ],
     'logger' => [
         'file_path' => LOG_PATH,
         'main_name' => 'main.log',
         'main_level' => 'info',
         'user_level' => 'info',
+        // Скільки днів зберігати ротовані лог-файли (0 - без обмеження)
+        'keep_days' => 30,
     ],
     // move here from Messages due to messages fail into loop in load
     // call function emoji() initiate load message files

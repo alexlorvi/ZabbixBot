@@ -3,7 +3,7 @@
 namespace ZabbixBot\Services;
 
 use Monolog\Logger;
-use Monolog\Handler\StreamHandler;
+use Monolog\Handler\RotatingFileHandler;
 use Monolog\Formatter\LineFormatter;
 
 class LoggerService {
@@ -24,9 +24,10 @@ class LoggerService {
 
     private function initLoggers() {
         $loggerConfig = ConfigService::getInstance()->getNested('logger');
+        $keepDays = (int)($loggerConfig['keep_days'] ?? 30);
         foreach(['main','zabbix'] as $loggerName) {
             $tmpLogger = new Logger($loggerName);
-            $handler = new StreamHandler(fixpath($loggerConfig['file_path']).$loggerConfig['main_name'], Logger::toMonologLevel($loggerConfig['main_level']));
+            $handler = new RotatingFileHandler(fixpath($loggerConfig['file_path']).$loggerConfig['main_name'], $keepDays, Logger::toMonologLevel($loggerConfig['main_level']), true, 0640);
             $tmpLogger->pushHandler($handler);
             $this->loggers[$loggerName] = $tmpLogger;
         }
@@ -45,8 +46,9 @@ class LoggerService {
     public function createUserLogger($userId) {
         if (!isset($this->loggers[$userId])) {
             $loggerConfig = ConfigService::getInstance()->getNested('logger');
+            $keepDays = (int)($loggerConfig['keep_days'] ?? 30);
             $userLogger = new Logger('user_' . $userId);
-            $handler = new StreamHandler(fixpath($loggerConfig['file_path']).'user_' . $userId . '.log', Logger::toMonologLevel($loggerConfig['user_level']));
+            $handler = new RotatingFileHandler(fixpath($loggerConfig['file_path']).'user_' . $userId . '.log', $keepDays, Logger::toMonologLevel($loggerConfig['user_level']), true, 0640);
             // Optional: Customize the log format
             $formatter = new LineFormatter(null, null, true, true);
             $handler->setFormatter($formatter);

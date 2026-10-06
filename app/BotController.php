@@ -7,8 +7,11 @@ use Telegram\Bot\Api;
 use ZabbixBot\Services\ConfigService;
 use ZabbixBot\UserController;
 use ZabbixBot\CustomHttpClient;
+use ZabbixBot\Services\FileCache;
 use ZabbixBot\Services\MessageService;
 use ZabbixBot\Services\LangService;
+use ZabbixBot\Services\RateLimiter;
+use ZabbixBot\Services\UpdateDeduplicator;
 use DateTime;
 
 /**
@@ -22,6 +25,8 @@ class BotController {
     protected UserController $user;
     protected MessageService $message;
     protected LangService $msg;
+    protected RateLimiter $limiter;
+    protected UpdateDeduplicator $dedupe;
     public function __construct(){
         $this->config = ConfigService::getInstance()->getNested('telegram');
 
@@ -40,15 +45,38 @@ class BotController {
 
         $this->message = new MessageService($this->tgBot);
         $this->user = new UserController($this->message);
+
+        $cache = new FileCache(CACHE_PATH);
+        $this->limiter = new RateLimiter($cache);
+        $this->dedupe = new UpdateDeduplicator($cache);
     }
 
     public function registerHook():string {
-        $responce = $this->tgBot->setWebhook($this->config['webhook_url']) ? 'SUCCESS':'ERROR';
+        $params = [
+            'url' => $this->config['webhook_url'],
+            'allowed_updates' => ['message', 'callback_query'],
+        ];
+        if (!empty($this->config['webhook_secret'])) {
+            $params['secret_token'] = $this->config['webhook_secret'];
+        }
+        $responce = $this->tgBot->setWebhook($params) ? 'SUCCESS':'ERROR';
         return $responce . ': WebHook -> '. $this->config['webhook_url'];
     }
 
     public function handleWebhook():void {
-        $updates = $this->tgBot->getWebhookUpdate(); 
+        $secret = (string)($this->config['webhook_secret'] ?? '');
+        if ($secret !== '' && !hash_equals($secret, (string)($_SERVER['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN'] ?? ''))) {
+            mainLOG('main','warning','Webhook secret mismatch from '.($_SERVER['REMOTE_ADDR'] ?? '?'));
+            http_response_code(403);
+            return;
+        }
+
+        $updates = $this->tgBot->getWebhookUpdate();
+
+        if ($this->dedupe->seen((int)$updates->getUpdateId())) {
+            mainLOG('main','info','Duplicate update '.$updates->getUpdateId());
+            return;
+        }
         /**
          * Types:
          * 'message',
@@ -66,19 +94,31 @@ class BotController {
          * 'chat_member',
          * 'chat_join_request',
          */
-        if ($updates->isType('message')) { 
-            $this->handleMessage($updates->getMessage()); 
+        if ($updates->isType('message')) {
+            $message = $updates->getMessage();
+            $this->handleMessage($message->getChat()->getId(), $message->getText());
+        } elseif ($updates->isType('callback_query')) {
+            $callback = $updates->getCallbackQuery();
+            $this->tgBot->answerCallbackQuery(['callback_query_id' => $callback->getId()]);
+            $this->handleMessage($callback->getMessage()->getChat()->getId(), (string)$callback->getData());
         } else {
             mainLOG('main','info','Get message - '.$updates->objectType());
             mainLOG('main','debug',print_r($updates));
         };
     }
-    public function handleMessage($message) { 
-        $chatId = $message->getChat()->getId(); 
-        $text = $message->getText(); 
+    public function handleMessage($chatId, $text) {
         $this->user->setUserID($chatId);
         userLOG($chatId,'info','> '.$text);
- 
+
+        [$max, $window] = $this->config['rate_limit'] ?? [30, 60];
+        if (!$this->limiter->allow('cmd:'.$chatId, (int)$max, (int)$window)) {
+            userLOG($chatId,'warning','Rate limit exceeded');
+            if ($this->limiter->allow('cmd-notice:'.$chatId, 1, 60)) {
+                $this->message->sendMessage($chatId,'Забагато запитів. Зачекайте хвилину.');
+            }
+            return;
+        }
+
         if ($this->user->isUser() &&
             isset($this->config['user_commands']) && 
             is_array($this->config['user_commands'])) {
@@ -94,7 +134,15 @@ class BotController {
                     // Command in format /ev{\d+}
                     $this->user->displayEventById(substr($text, 3));
                     break;
-                
+
+                case (preg_match('/^\/hostid([0-9]+)$/i', $text)):
+                    // Натискання inline-кнопки хоста зі списку результатів /host
+                    $token = $this->user->getUserToken();
+                    if ($token !== null) {
+                        (new \ZabbixBot\Commands\HostCommand())->showHost($this->message, $chatId, $token, substr($text, strlen('/hostid')));
+                    }
+                    break;
+
                 case (preg_match('/^\/([0-9])+sec$/i', $text)):
                     // Command in format /{\d+}sec
                     $sec = substr($text,strlen('/'),strlen($text)-(strlen('sec')+1));

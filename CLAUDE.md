@@ -1,0 +1,84 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project overview
+
+A PHP Telegram bot that bridges Telegram and Zabbix: registered Zabbix users (matched via a Telegram media/`sendto` entry in Zabbix) can query their Zabbix problems/events, search hosts, and run basic network diagnostics from Telegram, while the bot can notify them of alerts. It runs both as a Telegram webhook (`index.php`) and as a CLI app (`console.php`) for background/queue/cron jobs.
+
+Namespace root: `ZabbixBot\` → `app/` (PSR-4, see `composer.json`).
+
+The `__OLD/` directory is a separate, older production bot (`zbx-bot-prod`, its own composer project, different namespace `ZbxBot\`) kept as reference material while its functionality is ported into this project. It is not part of this app's autoload and must not be required from `app/` code. `__OLD/config/config.php` and `__OLD/users/*.key` hold real production secrets and are gitignored — do not read, print, or log them.
+
+## Commands
+
+Install dependencies:
+```
+composer install
+cp config/config.php.sample config/config.php   # then fill in real secrets
+```
+
+Run the webhook entry point (normally invoked by the web server, not directly):
+```
+php index.php
+```
+
+Register the Telegram webhook (uncomment the CLI block in `index.php`, or call `BotController::registerHook()` another way). If `telegram.webhook_secret` is set in config, it must already be set *before* re-registering, otherwise Telegram's old webhook registration won't send the secret and the bot will reply 403 to every update.
+
+CLI console app (`console.php`):
+```
+php console.php app:retry-messages --limit=5     # drain the failed-message queue
+php console.php app:send-message <chatId> "text" # send an ad-hoc message
+php console.php app:top200-sync                   # sync the TOP200 Zabbix host group (cron)
+```
+
+Tests (PHPUnit, no network calls):
+```
+composer test
+```
+Single test / filter: `php vendor/bin/phpunit --filter testName tests/SomeTest.php`. Lint a single file: `php -l <file>` (no static analysis tool is configured).
+
+## Configuration
+
+- `config/config.php` is the real, gitignored config (copy `config/config.php.sample` to create it). Sections: `telegram` (bot token, webhook URL/secret, rate limit, proxy, registered command classes, `admins`), `zabbix` (host/API key, per-user token TTL and optional `token_key` for encryption, group aliases), `net` (SNMP community strings for `/cisco` and `/apc`), `logger` (paths, levels, retention), `emoji`.
+- `config/constants.php` defines path constants (`ROOT_PATH`, `CONF_PATH`, `MSG_PATH`, `LOG_PATH`, `USER_PREF_PATH`, `CACHE_PATH`, `TOKEN_PATH`, `COMMANDS_PATH`) used throughout the app instead of hardcoded paths.
+- `ConfigService` (singleton) loads `config/config.php` and exposes `get()`/`getNested('a.b.c', $default)` dot-path lookups.
+- `LangService` (singleton) loads `config/messages.php` plus any `config/messages.<lang>.php` variants (e.g. `messages.ua.php`) and exposes the same `get()`/`getNested()` dot-path API, falling back to the default language if a key is missing in the active one. Active language is per-user (`telegram.lang` default, overridable per user via preferences).
+
+## Architecture
+
+**Request flow (webhook path):** `index.php` → `BotController::handleWebhook()`:
+1. Validates the webhook secret (`X-Telegram-Bot-Api-Secret-Token` vs `telegram.webhook_secret`) if configured — returns 403 on mismatch.
+2. Reads the update and drops it if `UpdateDeduplicator` has already seen this `update_id` (Telegram retries webhooks that don't answer fast enough).
+3. For `message` updates and `callback_query` updates (inline keyboard button presses) alike, resolves `$chatId`/`$text` and calls `handleMessage()`.
+4. `handleMessage()` applies a per-chat `RateLimiter`, then `UserController::setUserID()` checks Zabbix authorization via `ZabbixService::isUser()` (cached lookup, see below). If authorized, it applies the user's saved language and lazily issues/renews a Zabbix API token on demand (not eagerly) via `UserTokens`.
+5. Authenticated users get extra Telegram commands registered at runtime (`telegram.user_commands` from config) and are routed through a `switch` that recognizes ad-hoc text patterns (`/ev{id}`, `/hostid{id}`, `/{n}sec`, `/{n}h`) in addition to normal `/command` dispatch via the Telegram SDK's command handler.
+6. Unauthenticated users only get the base `telegram.commands` (e.g. `/start`, `/help`).
+
+**Telegram commands** (`app/Commands/*.php`) extend the SDK's `Telegram\Bot\Commands\Command` and are registered via config (`telegram.commands` / `telegram.user_commands`), not autodiscovered. Each pulls its description/usage text from `LangService` rather than hardcoding strings, so adding a command means: create the class, add i18n strings under `command.<name>.*` in both `config/messages.php` and `config/messages.ua.php`, and list the class in `config/config.php`. Current user commands: `/ping`, `/events` (Zabbix group aliases), `/menu`, `/host` (search + inline host card with Ping/Cisco/APC buttons), `/reset` (admin-only, clears Zabbix cache), `/cisco`, `/apc`.
+
+**CLI commands** (`app/Commands/CLI/*.php`) extend Symfony Console's `Command` and are registered manually in `console.php` via `$application->add(...)`. They are separate from the Telegram command classes above (different base class, different registration mechanism).
+
+**Zabbix access** is centralized in `ZabbixService`, a wrapper over `intellitrend/zabbixapi` with its own `FileCache` (`CACHE_PATH`). `telegramUsers()`/`findUser()` cache the full Zabbix-user-with-Telegram-media list (`zabbix.user_cache_ttl`, default 300s, with stale-cache fallback if Zabbix is down) so `isUser()`/`getUserID()`/`getUserInfo()` cost one Zabbix call per TTL window instead of one per lookup. `getGroupIdByName()` caches the group name→id map similarly (`zabbix.group_cache_ttl`). `getUserProblems()` cross-checks `trigger.get` so disabled/unmonitored triggers don't show up as open problems. `issueUserToken()` creates-or-renews the per-user `zbx_bot` API token. Host lookups for `/host`: `searchHosts()`, `hostById()`, `hostProblems()`. Group membership management (used by Top200Sync): `getHostsByGroup()`, `massAddHostGroup()`, `massRemoveHostGroup()`. Admins can force-refresh via `resetUserCache()` (`/reset` command).
+
+**Per-user Zabbix API tokens** are stored encrypted (`TokenStore`, sodium secretbox when `zabbix.token_key` is configured, plain JSON with `0600` perms otherwise) under `TOKEN_PATH`, keyed by chat id. `UserTokens` issues a new token on first use and auto-renews it before expiry (`zabbix.user_token_ttl_days`); never written eagerly on every message.
+
+**Messaging** goes through `MessageService::sendMessage()`, which splits messages over Telegram's 4096-char limit (`MessageService::chunk()`, HTML-aware: balances `<pre>` tags across split points) and, on send failure, enqueues the message via `MessageQueue` (a flat JSON file at `preferences/message_queue.json`) for later retry by the `app:retry-messages` CLI command. `sendBlocks()` packs a list of independent text blocks (e.g. one per Zabbix problem) into as few messages as possible instead of one message per block — use it instead of looping `sendMessage()` per item.
+
+**Network diagnostics**: `PingService` (used by `/ping`, streams live output by editing the Telegram message) and `NetTools` (`/cisco` via `commands/get_Int_status_cisco2.sh` over SNMP, `/apc` via ping+SNMP+nmap port check, HTML output) are separate services — `NetTools` does not duplicate ping.
+
+**Top200Sync**: `Top200Sync::plan()` is a pure function that diffs the wanted TOP200 Zabbix group membership (derived from `WogRouters` host inventory tags 1-200, plus a hardcoded extra host) against current membership. `app:top200-sync` CLI command applies the diff via `ZabbixService`; intended for cron.
+
+**Logging** goes through `LoggerService` (Monolog-based singleton): a shared `main`/`zabbix` logger plus one lazily-created per-user log file (`logs/user_<id>.log`), both using `RotatingFileHandler` (`logger.keep_days`, default 30). Use the global helpers `mainLOG($channel, $level, $message)` and `userLOG($userId, $level, $message)` from `tools/helpers.php` rather than instantiating loggers directly.
+
+**User preferences** (`app/Models/User.php`) are a flat JSON key/value store per Telegram user ID (`preferences/user_<id>.json`) — currently just the language choice. Zabbix API tokens live separately in `TokenStore` (see above), not here.
+
+## Current state / open backlog
+
+Carried over from `temp/TODO.md`, not yet implemented — scope them individually rather than assuming they're related:
+- Per-user settings beyond language (severity threshold, favorite commands, auto-delete alarms after N days) — would extend `app/Models/User.php`.
+- `app:uphost` scheduled CLI command: ping a host repeatedly, notify on recovery or timeout.
+- An outbound "send alarm" API with reply-to-recover: track the Telegram `message_id` of a sent alert so a user's reply to it can be matched back to the original event. Needs a new small file-based store (same pattern as `TokenStore`) and a new branch in `BotController` to inspect `message.reply_to_message`.
+- ScriptServer integration: external system, config shape (URL/auth/script name/params) not yet specified — needs clarification before implementation.
+
+`__OLD/` still contains Telegram-webhook-signature verification, middleware-style request pipeline ideas, and its own PHPUnit test layout that can be referenced if any of the above needs prior art.

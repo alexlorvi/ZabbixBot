@@ -31,8 +31,26 @@ return [
             'menu' => [
                 [unichr(0x1F4D6)." Full Report"],
                 [unichr(0x1F4CB)." Summary Report"],
-            ]    
-        ]
+            ]
+        ],
+        'host' => [
+            'description' => 'Search a Zabbix host by name or IP, show its status and active problems',
+        ],
+        'reset' => [
+            'description' => 'Admin: reset the Zabbix users/groups cache',
+        ],
+        'cisco' => [
+            'description' => 'Cisco interface/port status over SNMP',
+            'usage' => emoji('warn').' IP not specified.'.PHP_EOL.
+                       '*Usage:* /cisco {IP}'.PHP_EOL.
+                       '*Example:*'.PHP_EOL.'/cisco 10.16.11.5',
+        ],
+        'apc' => [
+            'description' => 'APC management card diagnostic (ping/SNMP/port check)',
+            'usage' => emoji('warn').' IP not specified.'.PHP_EOL.
+                       '*Usage:* /apc {IP}'.PHP_EOL.
+                       '*Example:*'.PHP_EOL.'/apc 10.16.11.5',
+        ],
     ],
     'user' => [
         'UserEventsSummary' => [

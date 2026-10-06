@@ -44,7 +44,25 @@ return [
                     'params' => [],
                 ],
             ],
-        ]
+        ],
+        'host' => [
+            'description' => 'Пошук хоста Zabbix за іменем чи IP, стан і активні проблеми',
+        ],
+        'reset' => [
+            'description' => 'Адміну: скинути кеш користувачів/груп Zabbix',
+        ],
+        'cisco' => [
+            'description' => 'Стан портів Cisco через SNMP',
+            'usage' => emoji('warn').' Не вказано IP.'.PHP_EOL.
+                       '*Використання:* /cisco {IP}'.PHP_EOL.
+                       '*Приклад:*'.PHP_EOL.'/cisco 10.16.11.5',
+        ],
+        'apc' => [
+            'description' => 'Діагностика карти керування APC (ping/SNMP/порти)',
+            'usage' => emoji('warn').' Не вказано IP.'.PHP_EOL.
+                       '*Використання:* /apc {IP}'.PHP_EOL.
+                       '*Приклад:*'.PHP_EOL.'/apc 10.16.11.5',
+        ],
     ],
     'user' => [
         'UserEventsSummary' => [
