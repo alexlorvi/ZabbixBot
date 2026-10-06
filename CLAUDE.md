@@ -8,8 +8,6 @@ A PHP Telegram bot that bridges Telegram and Zabbix: registered Zabbix users (ma
 
 Namespace root: `ZabbixBot\` → `app/` (PSR-4, see `composer.json`).
 
-The `__OLD/` directory is a separate, older production bot (`zbx-bot-prod`, its own composer project, different namespace `ZbxBot\`) kept as reference material while its functionality is ported into this project. It is not part of this app's autoload and must not be required from `app/` code. `__OLD/config/config.php` and `__OLD/users/*.key` hold real production secrets and are gitignored — do not read, print, or log them.
-
 ## Commands
 
 Install dependencies:
@@ -81,4 +79,4 @@ Carried over from `temp/TODO.md`, not yet implemented — scope them individuall
 - An outbound "send alarm" API with reply-to-recover: track the Telegram `message_id` of a sent alert so a user's reply to it can be matched back to the original event. Needs a new small file-based store (same pattern as `TokenStore`) and a new branch in `BotController` to inspect `message.reply_to_message`.
 - ScriptServer integration: external system, config shape (URL/auth/script name/params) not yet specified — needs clarification before implementation.
 
-`__OLD/` still contains Telegram-webhook-signature verification, middleware-style request pipeline ideas, and its own PHPUnit test layout that can be referenced if any of the above needs prior art.
+Known minor gaps from the zbx-bot-prod port (low priority, not blocking): `ZabbixService::request()` re-authenticates on every call instead of caching the login like the old client did when the token is unchanged; there's no CLI equivalent of the old client's `webhook info`/`webhook del` actions (only registration, via `BotController::registerHook()`). `BotController`'s webhook dispatch also has no automated test coverage (webhook secret check, dedup, rate limit, admin-only routing) — the old client's equivalent tests relied on an injectable Transport interface that the SDK-based dispatch here doesn't have.

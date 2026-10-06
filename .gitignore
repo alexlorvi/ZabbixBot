@@ -8,11 +8,3 @@ composer.lock
 /tokens/*.key
 *.log
 .phpunit.result.cache
-
-# __OLD legacy client (zbx-bot-prod) — real secrets and runtime data, not for commit
-/__OLD/vendor/
-/__OLD/config/config.php
-/__OLD/users/*.key
-/__OLD/var/
-/__OLD/logs/
-/__OLD/composer.lock
