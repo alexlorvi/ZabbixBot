@@ -96,17 +96,17 @@ class BotController {
          */
         if ($updates->isType('message')) {
             $message = $updates->getMessage();
-            $this->handleMessage($message->getChat()->getId(), $message->getText());
+            $this->handleMessage($message->getChat()->getId(), $message->getText(), null);
         } elseif ($updates->isType('callback_query')) {
             $callback = $updates->getCallbackQuery();
             $this->tgBot->answerCallbackQuery(['callback_query_id' => $callback->getId()]);
-            $this->handleMessage($callback->getMessage()->getChat()->getId(), (string)$callback->getData());
+            $this->handleMessage($callback->getMessage()->getChat()->getId(), (string)$callback->getData(), $callback->getMessage()->getMessageId());
         } else {
             mainLOG('main','info','Get message - '.$updates->objectType());
             mainLOG('main','debug',print_r($updates));
         };
     }
-    public function handleMessage($chatId, $text) {
+    public function handleMessage($chatId, $text, $messageId = null) {
         $this->user->setUserID($chatId);
         userLOG($chatId,'info','> '.$text);
 
@@ -140,6 +140,36 @@ class BotController {
                     $token = $this->user->getUserToken();
                     if ($token !== null) {
                         (new \ZabbixBot\Commands\HostCommand())->showHost($this->message, $chatId, $token, substr($text, strlen('/hostid')));
+                    }
+                    break;
+
+                case (str_starts_with($text, 'menu:')):
+                    // Натискання кнопки inline-варіанту /menu
+                    switch (substr($text, strlen('menu:'))) {
+                        case 'full':
+                            $this->user->displayUserEventsFull();
+                            break;
+                        case 'summary':
+                            $this->user->displayUserEventsSummary();
+                            break;
+                        case 'help':
+                            $response = '';
+                            foreach ((array)$this->tgBot->getCommands() as $name => $command) {
+                                $response .= sprintf('/%s - %s'.PHP_EOL, $name, $command->getDescription());
+                            }
+                            $this->message->sendMessage($chatId, $response);
+                            break;
+                    }
+                    break;
+
+                case (str_starts_with($text, 'set:')):
+                    // Натискання кнопки панелі налаштувань (SettingsCommand) - все через editMessage
+                    $parts = explode(':', substr($text, strlen('set:')));
+                    $settings = new \ZabbixBot\Commands\SettingsCommand();
+                    if (($parts[0] ?? '') === 'open') {
+                        $settings->editOpen($this->message, $this->user, $chatId, $messageId);
+                    } else {
+                        $settings->applyAndRerender($this->message, $this->user, $chatId, $messageId, $parts);
                     }
                     break;
 

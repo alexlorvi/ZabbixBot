@@ -95,6 +95,40 @@ class ZabbixService {
         return $this->findUser($userID)['userid'] ?? null;
     }
 
+    /**
+     * Усі налаштовані методи сповіщення (media) Zabbix-користувача, без фільтра по типу медіа.
+     * Викликається сервісним ключем (адмінські права потрібні для редагування чужого user-об'єкта).
+     * @return list<array<string,mixed>>
+     */
+    public function getUserMediasFull(string $userId): array {
+        $result = $this->request('user.get', [
+            'userids' => $userId,
+            'output' => ['userid'],
+            'selectMedias' => ['mediatypeid', 'sendto', 'active', 'severity', 'period'],
+        ]);
+        return (is_array($result) && isset($result[0]['medias'])) ? $result[0]['medias'] : [];
+    }
+
+    /**
+     * Виставляє однакову severity-маску на кожен налаштований метод сповіщення користувача.
+     * Зберігає інші поля media (sendto/active/period) без змін.
+     */
+    public function updateUserMediaSeverity(string $userId, int $severityMask): bool {
+        $medias = $this->getUserMediasFull($userId);
+        if (!$medias) {
+            return false;
+        }
+        foreach ($medias as &$media) {
+            $media['severity'] = (string)$severityMask;
+        }
+        unset($media);
+        $result = $this->request('user.update', [
+            'userid' => $userId,
+            'medias' => $medias,
+        ]);
+        return is_array($result) && isset($result['userids']);
+    }
+
     public function getUserToken($userID):string {
         $result = $this->request('token.get',[
             'filter'=>[

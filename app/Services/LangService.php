@@ -10,7 +10,7 @@ class LangService {
     private array $messages = [];
     private array $languages = [];
     private string $currentLanguage;
-    private string $defaultName = 'def';
+    private string $defaultName = 'en';
 
     public function __construct() {
         $this->readLangFiles($this->defaultName);

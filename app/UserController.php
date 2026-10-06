@@ -53,6 +53,25 @@ class UserController {
         }
     }
 
+    /** Zabbix userid, прив'язаний до поточного автентифікованого chat_id. */
+    public function getZabbixUserId(): ?string {
+        return $this->zabbixService->getUserID($this->userID);
+    }
+
+    /** Вже створений інстанс ZabbixService (щоб не плодити другий FileCache тощо). */
+    public function zabbix(): ZabbixService {
+        return $this->zabbixService;
+    }
+
+    public function getPreference(string $key, $default = null) {
+        return $this->user->get($key, $default);
+    }
+
+    public function setPreference(string $key, $value): void {
+        $this->user->set($key, $value);
+        $this->user->writeUserPreference();
+    }
+
     /** Персональний API-токен Zabbix користувача: зі сховища, або випускається/оновлюється на льоту. */
     public function getUserToken(): ?string {
         $zbxUserId = $this->zabbixService->getUserID($this->userID);

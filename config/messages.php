@@ -31,7 +31,26 @@ return [
             'menu' => [
                 [unichr(0x1F4D6)." Full Report"],
                 [unichr(0x1F4CB)." Summary Report"],
-            ]
+            ],
+            'full_button' => unichr(0x1F4D6)." Full Report",
+            'summary_button' => unichr(0x1F4CB)." Summary Report",
+            'help_button' => "\u{2754} Help",
+            'settings_button' => "\u{2699}\u{FE0F} Settings",
+        ],
+        'settings' => [
+            'description' => 'Personal settings: language, notification severity, /menu style',
+            'title' => "\u{2699}\u{FE0F} Settings",
+            'lang' => 'Language',
+            'severity' => 'Notification severity',
+            'menu_style' => '/menu style',
+            'menu_style_inline' => 'Inline buttons',
+            'menu_style_reply' => 'Classic keyboard',
+            'severity_levels' => ['Not classified', 'Information', 'Warning', 'Average', 'High', 'Disaster'],
+            'back' => "\u{00AB} Back",
+            'close' => 'Close',
+            'closed' => 'Settings closed.',
+            'updated' => 'Settings updated.',
+            'zabbix_error' => 'Could not update settings in Zabbix. Try again later.',
         ],
         'host' => [
             'description' => 'Search a Zabbix host by name or IP, show its status and active problems',
@@ -81,5 +100,9 @@ return [
     ],
     'main' => [
         'dateSec' => '%a days, %h hours, %i minutes %s seconds',
+    ],
+    'languageNames' => [
+        'en' => 'English',
+        'ua' => 'Українська',
     ],
 ];

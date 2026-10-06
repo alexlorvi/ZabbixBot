@@ -36,6 +36,7 @@ return [
             ZabbixBot\Commands\ResetCommand::class,
             ZabbixBot\Commands\CiscoCommand::class,
             ZabbixBot\Commands\ApcCommand::class,
+            ZabbixBot\Commands\SettingsCommand::class,
         ],
         // Chat ID-и, яким дозволені адмінські команди (/reset)
         'admins' => [
@@ -44,6 +45,8 @@ return [
     ],
     'zabbix' => [
         'host' => '',
+        // Потребує прав на user.update (редагування чужих user-об'єктів) - потрібно для /settings
+        // (зміна severity в media інших Zabbix-користувачів через сервісний ключ, не особистий токен).
         'apikey' => '',
         // Термін дії персонального Zabbix API-токена користувача (дні). 0 - без терміну.
         'user_token_ttl_days' => 90,

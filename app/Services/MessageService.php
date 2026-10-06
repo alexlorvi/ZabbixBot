@@ -46,6 +46,30 @@ class MessageService {
         }
     }
 
+    /** Редагує вже надіслане повідомлення (для панелей на callback_query, щоб не плодити нові повідомлення). */
+    public function editMessage($chatId, $messageId, string $text, $markup = null, $options = []) {
+        if (trim($text) === '') {
+            userLOG($chatId,'error','Empty edit text skipped');
+            return;
+        }
+        $isHtml = strtolower((string)($options['parse_mode'] ?? '')) === 'html';
+        $parts = self::chunk($text, $isHtml);
+        $editArray = array_merge([
+            'chat_id' => $chatId,
+            'message_id' => $messageId,
+            'text' => $parts[0],
+        ], $options);
+        if ($markup !== null) {
+            $editArray['reply_markup'] = $markup;
+        }
+        try {
+            $this->telegram->editMessageText($editArray);
+            userLOG($chatId,'info','~ '.$parts[0]);
+        } catch (\Exception $e) {
+            userLOG($chatId,'error','Edit Error - '.$e->getMessage());
+        }
+    }
+
     /** Склеює блоки (напр. одна подія = один блок) у повідомлення до LIMIT символів замість одного повідомлення на блок. */
     public function sendBlocks($chatId, array $blocks, string $sep = "\n", $options = []) {
         foreach (self::packBlocks($blocks, $sep) as $text) {
