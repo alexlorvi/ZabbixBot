@@ -98,8 +98,7 @@ return [
         'UserEventsSummary' => [
             'Line' => '%s %s - /ev%s'.PHP_EOL.
                       emoji('pushpin').' %s (%s)'.PHP_EOL.
-                      emoji('page').' %s'.PHP_EOL.
-                      emoji('preatyline'),
+                      emoji('page').' %s',
             'Count' => 'Всього не закрито подій - %s',
             'None' => 'У Вас немає відкритих інцидентів',
         ],
@@ -109,10 +108,9 @@ return [
                       emoji('clock').' %s (%s)'.PHP_EOL.
                       emoji('pushpin').' %s (%s)'.PHP_EOL.
                       '/ev%s'.PHP_EOL.
-                      emoji('preatyline').PHP_EOL.
-                      emoji('page').' %s %s'.PHP_EOL,
-            'tagsLine' => "\u{1F3F7} %s".PHP_EOL,
-            'ackLine' => emoji('speech').' %s - %s (%s)'.PHP_EOL,
+                      emoji('page').' %s %s',
+            'tagsLine' => PHP_EOL."\u{1F3F7} %s",
+            'ackLine' => PHP_EOL.emoji('speech').' %s - %s (%s)',
             'Count' => 'Всього не закрито подій - %s',
             'None' => 'У Вас немає відкритих інцидентів',
         ],

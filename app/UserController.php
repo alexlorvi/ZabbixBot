@@ -95,7 +95,7 @@ class UserController {
         if (count($events)>0) {
             $this->messenger->chatActionTyping($this->userID);
             $blocks = array_map(fn($e) => $this->formatEvent($e), $events);
-            $this->messenger->sendBlocks($this->userID,$blocks);
+            $this->messenger->sendBlocks($this->userID,$blocks,$this->ticketSeparator());
             $format =$this->msg->getNested('user.UserEventsFull.Count');
             $this->messenger->sendMessage($this->userID,sprintf($format,count($events)));
         } else {
@@ -123,7 +123,7 @@ class UserController {
                                 $event['hostHost'],
                                 $event['name']);
             }
-            $this->messenger->sendBlocks($this->userID,$blocks);
+            $this->messenger->sendBlocks($this->userID,$blocks,$this->ticketSeparator());
             $format =$this->msg->getNested('user.UserEventsSummary.Count');
             $this->messenger->sendMessage($this->userID,sprintf($format,count($events)));
         } else {
@@ -136,6 +136,11 @@ class UserController {
         if (is_array($eventInfo)) {
             $this->messenger->sendMessage($this->userID,$this->formatEvent($this->normalizeEvent($eventInfo, $eventInfo)));
         }
+    }
+
+    /** Роздільник між блоками подій у загальному переліку. */
+    private function ticketSeparator(): string {
+        return PHP_EOL.emoji('preatyline').PHP_EOL;
     }
 
     /** Подія в єдиному вигляді з problem.get (може бути порожнім) і event.get (хости, квитування, теги). */
@@ -199,7 +204,7 @@ class UserController {
             $reply .= sprintf($format,
                       date('d/m/Y H:i:s',$acknowledge['clock']),
                       $acknowledge['message'],
-                      $acknowledge['username'] ?? '');
+                      $acknowledge['username'] ?? $acknowledge['userid'] ?? '');
         }
         return $reply;
     }

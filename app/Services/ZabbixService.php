@@ -258,7 +258,7 @@ class ZabbixService {
         }
         $result = $this->request('event.get',[
             'output' => ['eventid','acknowledged','name','clock','severity'],
-            'select_acknowledges' => ['clock','message','username'],
+            'selectAcknowledges' => 'extend',
             'selectTags' => 'extend',
             'selectHosts' => ['host','name'],
             'eventids' => array_values($eventIds),
