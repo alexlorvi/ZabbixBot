@@ -8,6 +8,7 @@ use Telegram\Bot\Commands\Command as TgCommand;
 use Telegram\Bot\Exceptions\TelegramOtherException;
 use ZabbixBot\Services\PingService;
 use ZabbixBot\Services\LangService;
+use ZabbixBot\Services\UsagePrompts;
 
 class PingCommand extends TgCommand {
     protected string $name = 'ping';
@@ -34,6 +35,8 @@ class PingCommand extends TgCommand {
                     'parse_mode' => 'markdown',
                 ]);
                 userLOG($message->getChat()->getId(),'info','< Command Ping Usage reply');
+                // якщо користувач відредагує команду - довідку буде видалено, а команду виконано (BotController)
+                UsagePrompts::forBot()->remember((string)$message->getChat()->getId(), (int)$this->getUpdate()->getMessage()->get('message_id'), (int)$message->getMessageId());
             } catch (TelegramOtherException $e) {
                 mainLOG('main','error',"Telegram Error: " . $e->getMessage());
             } catch (\Exception $e) {

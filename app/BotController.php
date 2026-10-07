@@ -10,6 +10,7 @@ use ZabbixBot\Services\MessageService;
 use ZabbixBot\Services\LangService;
 use ZabbixBot\Services\RateLimiter;
 use ZabbixBot\Services\UpdateDeduplicator;
+use ZabbixBot\Services\UsagePrompts;
 use ZabbixBot\Services\Router;
 use ZabbixBot\Services\TelegramFactory;
 use DateTime;
@@ -27,6 +28,7 @@ class BotController {
     protected LangService $msg;
     protected RateLimiter $limiter;
     protected UpdateDeduplicator $dedupe;
+    protected UsagePrompts $prompts;
     public function __construct(){
         $this->config = ConfigService::getInstance()->getNested('telegram');
 
@@ -44,12 +46,14 @@ class BotController {
         $cache = new FileCache(CACHE_PATH);
         $this->limiter = new RateLimiter($cache);
         $this->dedupe = new UpdateDeduplicator($cache);
+        $this->prompts = new UsagePrompts($cache);
     }
 
     public function registerHook():string {
         $params = [
             'url' => $this->config['webhook_url'],
-            'allowed_updates' => ['message', 'callback_query'],
+            // edited_message - виправлена порожня команда (див. UsagePrompts)
+            'allowed_updates' => ['message', 'edited_message', 'callback_query'],
         ];
         if (!empty($this->config['webhook_secret'])) {
             $params['secret_token'] = $this->config['webhook_secret'];
@@ -104,6 +108,18 @@ class BotController {
                 ? ['message_id' => (int)$replyTo->get('message_id'), 'text' => (string)($replyTo->get('text') ?? $replyTo->get('caption') ?? ''), 'own_id' => (int)$message->get('message_id')]
                 : null;
             $this->handleMessage($message->getChat()->getId(), (string)$message->getText(), null, $reply);
+        } elseif ($updates->isType('edited_message')) {
+            // Реагуємо лише на виправлення команди, на яку бот відповів довідкою: довідку прибираємо, команду виконуємо.
+            // Інші редагування ігноруються, щоб правка старого повідомлення не перезапускала команди.
+            $message = $updates->getMessage();
+            $chatId = $message->getChat()->getId();
+            $usageId = $this->prompts->take((string)$chatId, (int)$message->get('message_id'));
+            if ($usageId === null) {
+                return;
+            }
+            userLOG($chatId,'info','Edited command, usage message '.$usageId.' replaced');
+            $this->message->deleteMessage($chatId, $usageId);
+            $this->handleMessage($chatId, (string)$message->getText(), null, null);
         } elseif ($updates->isType('callback_query')) {
             $callback = $updates->getCallbackQuery();
             $this->tgBot->answerCallbackQuery(['callback_query_id' => $callback->getId()]);

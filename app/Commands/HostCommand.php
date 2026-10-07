@@ -6,6 +6,7 @@ use \Telegram\Bot\Commands\Command;
 use Telegram\Bot\Keyboard\Keyboard;
 use ZabbixBot\Services\LangService;
 use ZabbixBot\Services\MessageService;
+use ZabbixBot\Services\UsagePrompts;
 use ZabbixBot\Services\ZabbixService;
 use ZabbixBot\UserController;
 
@@ -35,12 +36,16 @@ class HostCommand extends Command {
         }
 
         $query = trim((string)$this->argument('query', ''));
-        $this->search($messenger, $user, $chatId, $query);
+        $this->search($messenger, $user, $chatId, $query, (int)$this->getUpdate()->getMessage()->get('message_id'));
     }
 
-    public function search(MessageService $messenger, UserController $user, $chatId, string $query): void {
+    public function search(MessageService $messenger, UserController $user, $chatId, string $query, int $userMessageId = 0): void {
         if ($query === '') {
-            $messenger->sendMessage($chatId, $this->t('usage'));
+            $usageId = $messenger->sendMessage($chatId, $this->t('usage'));
+            if ($usageId !== null) {
+                // якщо користувач відредагує команду - довідку буде видалено, а команду виконано (BotController)
+                UsagePrompts::forBot()->remember((string)$chatId, $userMessageId, $usageId);
+            }
             return;
         }
         if (mb_strlen($query) < 3 || mb_strlen($query) > 64) {

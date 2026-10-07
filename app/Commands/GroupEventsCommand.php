@@ -5,6 +5,7 @@ namespace ZabbixBot\Commands;
 use \Telegram\Bot\Commands\Command;
 use ZabbixBot\Services\ConfigService;
 use ZabbixBot\Services\LangService;
+use ZabbixBot\Services\UsagePrompts;
 use ZabbixBot\Services\MessageService;
 use Telegram\Bot\Exceptions\TelegramOtherException;
 use ZabbixBot\UserController;
@@ -43,6 +44,8 @@ class GroupEventsCommand extends Command {
                     'parse_mode' => 'markdown',
                 ]);
                 userLOG($message->getChat()->getId(),'info','< Command Events Usage reply');
+                // якщо користувач відредагує команду - довідку буде видалено, а команду виконано (BotController)
+                UsagePrompts::forBot()->remember((string)$message->getChat()->getId(), (int)$this->getUpdate()->getMessage()->get('message_id'), (int)$message->getMessageId());
             } catch (TelegramOtherException $e) { 
                 mainLOG('main','error',"Telegram Error: " . $e->getMessage()); 
             } catch (\Exception $e) { 

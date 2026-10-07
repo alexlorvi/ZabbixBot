@@ -5,6 +5,7 @@ namespace ZabbixBot\Commands;
 use \Telegram\Bot\Commands\Command;
 use Telegram\Bot\Exceptions\TelegramOtherException;
 use ZabbixBot\Services\LangService;
+use ZabbixBot\Services\UsagePrompts;
 use ZabbixBot\Services\MessageService;
 use ZabbixBot\Services\NetTools;
 
@@ -32,6 +33,8 @@ class ApcCommand extends Command {
                     'parse_mode' => 'markdown',
                 ]);
                 userLOG($message->getChat()->getId(),'info','< Command APC Usage reply');
+                // якщо користувач відредагує команду - довідку буде видалено, а команду виконано (BotController)
+                UsagePrompts::forBot()->remember((string)$message->getChat()->getId(), (int)$this->getUpdate()->getMessage()->get('message_id'), (int)$message->getMessageId());
             } catch (TelegramOtherException $e) {
                 mainLOG('main','error',"Telegram Error: " . $e->getMessage());
             } catch (\Exception $e) {
