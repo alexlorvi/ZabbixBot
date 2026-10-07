@@ -4,7 +4,6 @@ namespace ZabbixBot\Commands;
 
 use \Telegram\Bot\Commands\Command;
 use Telegram\Bot\Exceptions\TelegramOtherException;
-use ZabbixBot\Services\ConfigService;
 use ZabbixBot\Services\LangService;
 use ZabbixBot\Services\MessageService;
 use ZabbixBot\Services\NetTools;
@@ -14,13 +13,10 @@ class CiscoCommand extends Command {
     protected string $pattern = '{ip}';
     private LangService $msg;
     protected string $description;
-    private NetTools $net;
 
     public function __construct() {
         $this->msg = LangService::getInstance();
         $this->description = $this->msg->getNested('command.'.$this->name.'.description');
-        $cfg = ConfigService::getInstance()->getNested('net', []);
-        $this->net = new NetTools($cfg, COMMANDS_PATH.'/get_Int_status_cisco2.sh');
     }
 
     public function handle() {
@@ -44,8 +40,13 @@ class CiscoCommand extends Command {
             return;
         }
 
-        $messenger->sendMessage($chatId, 'Зачекайте. Пробую...');
+        $this->run($messenger, $chatId, $ip);
+    }
+
+    /** Спільне для /cisco і кнопки Cisco на картці хоста. */
+    public function run(MessageService $messenger, $chatId, string $ip): void {
+        $messenger->sendMessage($chatId, $this->msg->getNested('command.cisco.wait'));
         userLOG($chatId,'info',"< Cisco command for host: $ip");
-        $messenger->sendMessage($chatId, $this->net->cisco($ip));
+        $messenger->sendMessage($chatId, NetTools::fromConfig()->cisco($ip));
     }
 }

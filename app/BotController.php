@@ -105,7 +105,7 @@ class BotController {
             $this->handleMessage($callback->getMessage()->getChat()->getId(), (string)$callback->getData(), $callback->getMessage()->getMessageId());
         } else {
             mainLOG('main','info','Get message - '.$updates->objectType());
-            mainLOG('main','debug',print_r($updates));
+            mainLOG('main','debug',json_encode($updates->toArray(), JSON_UNESCAPED_UNICODE));
         };
     }
     public function handleMessage($chatId, $text, $messageId = null) {
@@ -116,7 +116,7 @@ class BotController {
         if (!$this->limiter->allow('cmd:'.$chatId, (int)$max, (int)$window)) {
             userLOG($chatId,'warning','Rate limit exceeded');
             if ($this->limiter->allow('cmd-notice:'.$chatId, 1, 60)) {
-                $this->message->sendMessage($chatId,'Забагато запитів. Зачекайте хвилину.');
+                $this->message->sendMessage($chatId,$this->msg->getNested('main.rateLimited'));
             }
             return;
         }
@@ -130,8 +130,14 @@ class BotController {
 
         // Registered User Area
         if ($this->user->isUser()) {
-            $menu = $this->msg->getNested('command.menu.menuaction') ?? [] ;
-            [$kind, $arg] = Router::classify((string)$text, $menu);
+            // Підписи кнопок reply-клавіатури /menu (MenuCommand::sendReply) => дія
+            $menu = [
+                (string)$this->msg->getNested('command.menu.full_button') => 'full',
+                (string)$this->msg->getNested('command.menu.summary_button') => 'summary',
+            ];
+            [$kind, $arg] = $messageId !== null
+                ? Router::classifyCallback((string)$text)
+                : Router::classify((string)$text, $menu);
             switch ($kind) {
                 case 'ev':
                     $this->user->displayEventById($arg);
@@ -158,7 +164,23 @@ class BotController {
                             $this->message->sendMessage($chatId, $this->user->commandListText((array)$this->tgBot->getCommands()));
                             break;
                         case 'reset':
-                            $this->message->sendMessage($chatId, $this->user->resetCache() ? 'Кеш користувачів і груп очищено' : 'Га?');
+                            $this->message->sendMessage($chatId, $this->msg->getNested($this->user->resetCache() ? 'command.reset.done' : 'command.reset.denied'));
+                            break;
+                    }
+                    break;
+
+                case 'net':
+                    // Кнопки Ping/Cisco/APC картки хоста (HostCommand::showHost), net:<tool>:<ip>
+                    [$tool, $target] = array_pad(explode(':', $arg, 2), 2, '');
+                    switch ($tool) {
+                        case 'ping':
+                            (new \ZabbixBot\Commands\PingCommand())->run($this->tgBot, $chatId, $target);
+                            break;
+                        case 'cisco':
+                            (new \ZabbixBot\Commands\CiscoCommand())->run($this->message, $chatId, $target);
+                            break;
+                        case 'apc':
+                            (new \ZabbixBot\Commands\ApcCommand())->run($this->message, $chatId, $target);
                             break;
                     }
                     break;
@@ -187,8 +209,16 @@ class BotController {
                     break;
 
                 case 'menuaction':
-                    $this->message->sendMessage($chatId,'Menu option');
-                    $this->checkKeyboard($arg);
+                    // Кнопка reply-клавіатури /menu
+                    if ($menu[$arg] === 'full') {
+                        $this->user->displayUserEventsFull();
+                    } else {
+                        $this->user->displayUserEventsSummary();
+                    }
+                    break;
+
+                case 'ignored':
+                    userLOG($chatId,'warning','Unhandled callback data: '.$text);
                     break;
 
                 case 'text':
@@ -205,20 +235,11 @@ class BotController {
             }
         } 
         // Guest Area
-        elseif (!str_starts_with($text, '/')) { 
-            // ignore?
+        elseif ($messageId !== null || !str_starts_with($text, '/')) {
+            // гостям - лише /команди текстом (callback-кнопки SDK не обробляє)
         } elseif (is_array($this->tgBot->getCommands()) && count($this->tgBot->getCommands())>1) {
             $this->tgBot->commandsHandler(true);
         }
 
-    }
-
-    private function checkKeyboard(string $text) {
-        $menuActions = $this->msg->getNested('command.menu.menuaction');
-        if (isset($menuActions[$text])) {
-            $action = $menuActions[$text];
-            //call_user_func_array([$controller, $action['method']], $action['params']);
-            call_user_func_array([$this->user, $action['method']],$action['params']);
-        }
     }
 }

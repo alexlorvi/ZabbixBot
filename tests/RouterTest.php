@@ -35,6 +35,19 @@ final class RouterTest extends TestCase
         $this->assertSame('set', Router::classify('set:close')[0]);
     }
 
+    public function testCallback(): void
+    {
+        $this->assertSame(['net', 'ping:10.0.0.1'], Router::classifyCallback('net:ping:10.0.0.1'));
+        // кнопки зі старих карток хоста
+        $this->assertSame(['net', 'ping:10.0.0.1'], Router::classifyCallback('/ping 10.0.0.1'));
+        $this->assertSame(['net', 'apc:10.0.0.1'], Router::classifyCallback('/apc 10.0.0.1'));
+        $this->assertSame(['hostid', '10'], Router::classifyCallback('/hostid10'));
+        $this->assertSame(['set', 'close'], Router::classifyCallback('set:close'));
+        // SDK не вміє команди з callback_query - не передаємо
+        $this->assertSame('ignored', Router::classifyCallback('/help')[0]);
+        $this->assertSame('ignored', Router::classifyCallback('whatever')[0]);
+    }
+
     public function testSecretValid(): void
     {
         $this->assertTrue(Router::secretValid('', ''));

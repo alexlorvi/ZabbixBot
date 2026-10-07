@@ -40,7 +40,8 @@ final class MessageServiceRetryTest extends TestCase
     private function service(): MessageService
     {
         $api = $this->getMockBuilder(Api::class)->disableOriginalConstructor()->onlyMethods(['sendMessage', 'sendChatAction'])->getMock();
-        $api->method('sendChatAction')->willReturn(true);
+        // офлайн падає і sendChatAction (його виклик іде першим) - повідомлення все одно має потрапити в чергу
+        $api->method('sendChatAction')->willReturnCallback(fn() => $this->online ? true : throw new \RuntimeException('network down'));
         $api->method('sendMessage')->willReturnCallback(function (array $p) {
             if (!$this->online) {
                 throw new \RuntimeException('network down');

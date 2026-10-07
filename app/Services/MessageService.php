@@ -25,8 +25,13 @@ class MessageService {
         return $this->alerts ??= new AlertStore(ALERT_PATH, (int)ConfigService::getInstance()->getNested('alerts.ttl_days', 30));
     }
 
-    public function chatActionTyping( $chatID) {
-        $this->telegram->sendChatAction(['chat_id'=>$chatID,'action' => Actions::TYPING]);
+    /** Статус "друкує...". Лише косметика: помилка (Telegram/проксі недоступні) не має зривати відправку чи чергу. */
+    public function chatActionTyping($chatID): void {
+        try {
+            $this->telegram->sendChatAction(['chat_id'=>$chatID,'action' => Actions::TYPING]);
+        } catch (\Throwable $e) {
+            userLOG($chatID,'warning','Chat action failed - '.$e->getMessage());
+        }
     }
 
     /**

@@ -90,10 +90,13 @@ class UserController {
 
     public function displayUserEventsFull($severity=[5],$group=NULL,$untilTime=NULL) {
         if (!isset($this->userID)) {
-            userLOG($this->userID,'error','Call displayUserEventsFull, but User ID not defined.');
-            exit;
+            mainLOG('main','error','Call displayUserEventsFull, but User ID not defined.');
+            return;
         }
         $events = $this->getUserEvents($severity,$group,$untilTime);
+        if ($events === null) {
+            return;
+        }
         if (count($events)>0) {
             $this->messenger->chatActionTyping($this->userID);
             $i18n = $this->eventI18n();
@@ -108,10 +111,13 @@ class UserController {
 
     public function displayUserEventsSummary($severity=[5],$group=NULL) {
         if (!isset($this->userID)) {
-            userLOG($this->userID,'error','Call displayUserEventsSummary, but User ID not defined.');
-            exit;
+            mainLOG('main','error','Call displayUserEventsSummary, but User ID not defined.');
+            return;
         }
         $events = $this->getUserEvents($severity,$group);
+        if ($events === null) {
+            return;
+        }
 
         if (count($events)>0) {
             $this->messenger->chatActionTyping($this->userID);
@@ -177,12 +183,13 @@ class UserController {
     /**
      * Відкриті проблеми користувача, збагачені деталями подій (один batch event.get замість запиту на кожну).
      * $group - назва або ID групи хостів.
-     * @return list<array<string,mixed>>
+     * @return list<array<string,mixed>>|null null - не вдалося отримати токен (користувачу вже повідомлено)
      */
-    private function getUserEvents($severity=[5],$group=NULL,$untilTime=NULL): array {
+    private function getUserEvents($severity=[5],$group=NULL,$untilTime=NULL): ?array {
         $userToken = $this->getUserToken();
         if (!isset($userToken)) {
-            exit;
+            $this->messenger->sendMessage($this->userID,$this->msg->getNested('user.tokenError'));
+            return null;
         }
         $groupId = null;
         if ($group !== null) {

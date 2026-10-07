@@ -40,11 +40,11 @@ class HostCommand extends Command {
 
     public function search(MessageService $messenger, UserController $user, $chatId, string $query): void {
         if ($query === '') {
-            $messenger->sendMessage($chatId, "Використання: /host <IP або частина імені>\nНаприклад: /host 10.16.11.5 або /host Київ");
+            $messenger->sendMessage($chatId, $this->t('usage'));
             return;
         }
         if (mb_strlen($query) < 3 || mb_strlen($query) > 64) {
-            $messenger->sendMessage($chatId, 'Запит має бути від 3 до 64 символів');
+            $messenger->sendMessage($chatId, $this->t('length'));
             return;
         }
 
@@ -55,7 +55,7 @@ class HostCommand extends Command {
 
         $hosts = $this->zbx->searchHosts($token, $query, self::HOST_BUTTONS + 1);
         if (!$hosts) {
-            $messenger->sendMessage($chatId, "Нічого не знайдено за «{$query}»");
+            $messenger->sendMessage($chatId, sprintf($this->t('notFound'), $query));
             return;
         }
 
@@ -77,31 +77,31 @@ class HostCommand extends Command {
                 'callback_data' => '/hostid'.$h['hostid'],
             ])]);
         }
-        $more = count($hosts) > self::HOST_BUTTONS ? "\nПоказано перші ".self::HOST_BUTTONS.', уточніть запит.' : '';
-        $messenger->sendMessage($chatId, 'Знайдено кілька хостів за «'.$query.'». Оберіть:'.$more, ['reply_markup' => $keyboard]);
+        $more = count($hosts) > self::HOST_BUTTONS ? "\n".sprintf($this->t('more'), self::HOST_BUTTONS) : '';
+        $messenger->sendMessage($chatId, sprintf($this->t('many'), $query).$more, ['reply_markup' => $keyboard]);
     }
 
     public function showHost(MessageService $messenger, $chatId, string $token, string $hostId): void {
         $host = $this->zbx->hostById($token, $hostId);
         if ($host === null) {
-            $messenger->sendMessage($chatId, 'Хост не знайдено або немає доступу');
+            $messenger->sendMessage($chatId, $this->t('noAccess'));
             return;
         }
         $problems = $this->zbx->hostProblems($token, $hostId);
 
         $out = "\u{1F5A5} ".$host['name'].($host['host'] !== $host['name'] ? ' ('.$host['host'].')' : '')."\n".
-            'Моніторинг: '.((string)$host['status'] === '0' ? "увімкнено \u{2705}" : "вимкнено \u{1F6AB}")."\n";
+            $this->t('monitoring').': '.((string)$host['status'] === '0' ? $this->t('monitoringOn') : $this->t('monitoringOff'))."\n";
         foreach ($host['interfaces'] ?? [] as $if) {
             $addr = $if['ip'] !== '' && $if['ip'] !== '0.0.0.0' ? $if['ip'] : $if['dns'];
-            $out .= "\u{1F310} ".$addr.((string)$if['main'] === '1' ? '' : ' (дод.)')."\n";
+            $out .= "\u{1F310} ".$addr.((string)$if['main'] === '1' ? '' : ' ('.$this->t('extraIf').')')."\n";
         }
-        foreach (['tag' => 'Тег', 'location' => 'Розташування'] as $key => $title) {
+        foreach (['tag' => $this->t('tag'), 'location' => $this->t('location')] as $key => $title) {
             $val = trim((string)($host['inventory'][$key] ?? ''));
             if ($val !== '') {
                 $out .= "$title: $val\n";
             }
         }
-        $out .= "\n".($problems ? 'Активні проблеми ('.count($problems).(count($problems) >= 15 ? '+' : '')."):\n" : "Активних проблем немає \u{2705}\n");
+        $out .= "\n".($problems ? sprintf($this->t('problems'), count($problems).(count($problems) >= 15 ? '+' : ''))."\n" : $this->t('noProblems')."\n");
         foreach ($problems as $p) {
             $out .= (self::SEVERITY_ICON[(int)$p['severity']] ?? '').' '.date('d/m H:i', (int)$p['clock']).' '.$p['name'].' /ev'.$p['eventid']."\n";
         }
@@ -109,14 +109,18 @@ class HostCommand extends Command {
         $markup = null;
         $ip = $this->mainIp($host);
         if ($ip !== null) {
-            $buttons = [Keyboard::inlineButton(['text' => "\u{1F3D3} Ping", 'callback_data' => '/ping '.$ip])];
+            $buttons = [Keyboard::inlineButton(['text' => "\u{1F3D3} Ping", 'callback_data' => 'net:ping:'.$ip])];
             if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
-                $buttons[] = Keyboard::inlineButton(['text' => 'Cisco', 'callback_data' => '/cisco '.$ip]);
+                $buttons[] = Keyboard::inlineButton(['text' => 'Cisco', 'callback_data' => 'net:cisco:'.$ip]);
             }
-            $buttons[] = Keyboard::inlineButton(['text' => 'APC', 'callback_data' => '/apc '.$ip]);
+            $buttons[] = Keyboard::inlineButton(['text' => 'APC', 'callback_data' => 'net:apc:'.$ip]);
             $markup = Keyboard::make()->inline()->row($buttons);
         }
         $messenger->sendMessage($chatId, rtrim($out), $markup !== null ? ['reply_markup' => $markup] : []);
+    }
+
+    private function t(string $key): string {
+        return (string)$this->msg->getNested('command.host.'.$key);
     }
 
     private function isExact(array $host, string $q): bool {

@@ -33,7 +33,7 @@ class GroupEventsCommand extends Command {
         $text = $this->getUpdate()->getMessage()->getText();
 
         $groupName = $this->argument('groupName',$this->getGroupFromConfig($text));
-        $replyType = $this->argument('replyType',$this->getReplyFromText($text));
+        $replyType = $this->argument('replyType',self::replyTypeFromText((string)$text));
 
         if (!$groupName) {
             try { 
@@ -57,8 +57,10 @@ class GroupEventsCommand extends Command {
         }
     }
 
-    private function getReplyFromText($text) {
-        return (stripos('full',$text)>0) ? 'full' : 'list';
+    /** Аліас на кшталт /zabbixFull - докладний звіт, інакше короткий список. */
+    public static function replyTypeFromText(string $text): string {
+        $command = strtok($text, ' ') ?: '';
+        return stripos($command, 'full') !== false ? 'full' : 'list';
     }
 
     private function getGroupFromConfig($text){

@@ -34,12 +34,11 @@ class MenuCommand extends Command {
 
     private function sendReply(MessageService $messenger, $chatId): void {
         $reply = $this->msg->getNested('command.'.$this->name.'.message');
-        $menu = $this->msg->getNested('command.'.$this->name.'.menu');
 
+        // Підписи мають збігатися з тими, що BotController розпізнає як menuaction
         $reply_markup = Keyboard::make()->setResizeKeyboard(true)->setOneTimeKeyboard(true);
-        foreach($menu as $row) {
-            $reply_markup->row($row);
-        }
+        $reply_markup->row([$this->msg->getNested('command.menu.full_button')]);
+        $reply_markup->row([$this->msg->getNested('command.menu.summary_button')]);
 
         $messenger->sendMessage($chatId, $reply, ['reply_markup' => $reply_markup]);
     }

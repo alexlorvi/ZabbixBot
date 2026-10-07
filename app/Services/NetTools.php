@@ -5,13 +5,30 @@ namespace ZabbixBot\Services;
 /** Мережеві перевірки через системні утиліти (SNMP/nmap). Усі аргументи екрануються, усі виклики з timeout. */
 class NetTools {
 
-    public function __construct(private readonly array $config, private readonly string $ciscoScript) {
+    /**
+     * @param array{bad_ip?:string,bad_ipv4?:string,failed?:string} $text i18n (LangService net.*); bad_ip/bad_ipv4 - sprintf з адресою
+     */
+    public function __construct(private readonly array $config, private readonly string $ciscoScript, private readonly array $text = []) {
+    }
+
+    /** Інстанс з config net.* і текстами поточної мови. */
+    public static function fromConfig(): self {
+        return new self(
+            (array)ConfigService::getInstance()->getNested('net', []),
+            COMMANDS_PATH.'/get_Int_status_cisco2.sh',
+            (array)LangService::getInstance()->getNested('net', []),
+        );
+    }
+
+    private function t(string $key, string $arg = ''): string {
+        $defaults = ['bad_ip' => '%s does not look like an IP', 'bad_ipv4' => '%s does not look like an IPv4', 'failed' => 'Something went wrong'];
+        return sprintf((string)($this->text[$key] ?? $defaults[$key]), $arg);
     }
 
     public function cisco(string $ip): string {
         $ip = trim($ip);
         if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
-            return "Щось оце $ip не схоже на IPv4";
+            return $this->t('bad_ipv4', $ip);
         }
         $octets = explode('.', $ip);
         array_pop($octets);
@@ -19,7 +36,7 @@ class NetTools {
         $cmd = 'SNMP_COMMUNITY='.escapeshellarg((string)($this->config['snmp_community_cisco'] ?? ''))
             .' timeout 90 bash '.escapeshellarg($this->ciscoScript).' '.escapeshellarg($gw).' 2>&1';
         exec($cmd, $out);
-        return $out ? implode("\n", $out) : 'Щось пішло не так';
+        return $out ? implode("\n", $out) : $this->t('failed');
     }
 
     /** Відповідь у HTML (parse_mode=html), вивід утиліт екранується. */
@@ -29,7 +46,7 @@ class NetTools {
         $task = "\u{1F4CB}";
         $ip = trim($ip);
         if (!filter_var($ip, FILTER_VALIDATE_IP)) {
-            return 'Щось оце '.self::esc($ip).' не схоже на IP';
+            return $this->t('bad_ip', self::esc($ip));
         }
         $ipArg = escapeshellarg($ip);
         $community = escapeshellarg((string)($this->config['snmp_community_apc'] ?? 'public'));
@@ -37,11 +54,11 @@ class NetTools {
 
         exec("timeout -s INT 20 ping -AO -c 3 $ipArg 2>&1", $o1, $r1);
         $reply = $task.'<b>Test Ping</b> - '.($r1 === 0 ? $ok : $notOk."($r1)")
-            .$pre($o1 ? self::esc(implode("\n", $o1)) : 'Щось пішло не так');
+            .$pre($o1 ? self::esc(implode("\n", $o1)) : $this->t('failed'));
 
         exec("snmpget -t 2 -r 1 -Ovq -c $community -v 1 $ipArg SNMPv2-MIB::sysDescr.0 2>&1", $o2, $r2);
         $reply .= $task.'<b>Test SNMP</b> - '.($r2 === 0 ? $ok : $notOk."($r2)")
-            .$pre($o2 ? self::esc(implode("\n", str_replace(['(', ')'], "\n", $o2))) : 'Щось пішло не так');
+            .$pre($o2 ? self::esc(implode("\n", str_replace(['(', ')'], "\n", $o2))) : $this->t('failed'));
 
         exec("timeout 30 nmap -Pn -p 80,443,22 $ipArg 2>&1 | grep -v nmap.org", $o3);
         $lines = '';
@@ -54,7 +71,7 @@ class NetTools {
             }
             $lines .= $line."\n";
         }
-        return $reply.$task.'<b>Port Check</b>'.rtrim($pre($lines !== '' ? $lines : 'Щось пішло не так'), "\n");
+        return $reply.$task.'<b>Port Check</b>'.rtrim($pre($lines !== '' ? $lines : $this->t('failed')), "\n");
     }
 
     private static function esc(string $s): string {

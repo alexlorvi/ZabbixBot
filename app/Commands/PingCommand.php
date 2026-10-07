@@ -3,6 +3,7 @@
 namespace ZabbixBot\Commands;
 
 use Telegram\Bot\Actions;
+use Telegram\Bot\Api;
 use Telegram\Bot\Commands\Command as TgCommand;
 use Telegram\Bot\Exceptions\TelegramOtherException;
 use ZabbixBot\Services\PingService;
@@ -22,52 +23,60 @@ class PingCommand extends TgCommand {
     }
     public function handle()
     {
-        $host = $this->argument('host');
-        $count = $this->argument('count', 4);
+        $host = trim((string)$this->argument('host', ''));
+        $chatId = $this->getUpdate()->getMessage()->getChat()->getId();
 
-        $count = ($count>50) ? 50 : $count;
-        $count = ($count<0) ? 4 : $count;
-
-        if (!$host) {
-            try { 
+        if ($host === '') {
+            try {
                 $reply = $this->msg->getNested('command.'.$this->name.'.usage');
                 $message = $this->replyWithMessage([
                     'text' => $reply,
                     'parse_mode' => 'markdown',
                 ]);
                 userLOG($message->getChat()->getId(),'info','< Command Ping Usage reply');
-            } catch (TelegramOtherException $e) { 
-                mainLOG('main','error',"Telegram Error: " . $e->getMessage()); 
-            } catch (\Exception $e) { 
-                mainLOG('main','error',"General Error: " . $e->getMessage()); 
+            } catch (TelegramOtherException $e) {
+                mainLOG('main','error',"Telegram Error: " . $e->getMessage());
+            } catch (\Exception $e) {
+                mainLOG('main','error',"General Error: " . $e->getMessage());
             }
         } else {
-            $message = $this->replyWithMessage(['text' => $this->msg->getNested('command.ping.start')]);
-
-            $messageId = $message->getMessageId(); 
-            $chatId = $message->getChat()->getId();
-
-            userLOG($chatId,'info',"< Ping command for host: $host");
-
-            $this->replyWithChatAction(['action' => Actions::TYPING]);
-
-            $pingResults = $this->msg->getNested('command.ping.start');
-            $callback = function ($line) use (&$pingResults, $chatId, $messageId) { 
-                $pingResults .= $line; 
-                try { 
-                    userLOG($chatId,'debug',"<<<<".$pingResults);
-                    $this->telegram->editMessageText([ 
-                        'chat_id' => $chatId, 
-                        'message_id' => $messageId, 
-                        'text' => $pingResults 
-                    ]); 
-                } catch (TelegramOtherException $e) { 
-                    mainLOG('main','error',"Telegram Error: " . $e->getMessage()); 
-                } catch (\Exception $e) { 
-                    mainLOG('main','error',"General Error: " . $e->getMessage()); 
-                }
-            };
-            $this->pingService->ping($host,$count,$callback);
+            $this->run($this->getTelegram(), $chatId, $host, PingService::clampCount($this->argument('count', PingService::DEFAULT_COUNT)));
         }
+    }
+
+    /** Пінг з живим оновленням одного повідомлення. Спільне для /ping і кнопки Ping на картці хоста. */
+    public function run(Api $telegram, $chatId, string $host, int $count = PingService::DEFAULT_COUNT): void {
+        if (!PingService::validHost($host)) {
+            $telegram->sendMessage(['chat_id' => $chatId, 'text' => sprintf($this->msg->getNested('command.ping.badHost'), $host)]);
+            return;
+        }
+        $message = $telegram->sendMessage(['chat_id' => $chatId, 'text' => $this->msg->getNested('command.ping.start')]);
+        $messageId = $message->getMessageId();
+
+        userLOG($chatId,'info',"< Ping command for host: $host");
+
+        try {
+            $telegram->sendChatAction(['chat_id' => $chatId, 'action' => Actions::TYPING]);
+        } catch (\Exception $e) {
+            // лише косметика
+        }
+
+        $pingResults = $this->msg->getNested('command.ping.start');
+        $callback = function ($line) use (&$pingResults, $telegram, $chatId, $messageId) {
+            $pingResults .= $line;
+            try {
+                userLOG($chatId,'debug',"<<<<".$pingResults);
+                $telegram->editMessageText([
+                    'chat_id' => $chatId,
+                    'message_id' => $messageId,
+                    'text' => $pingResults
+                ]);
+            } catch (TelegramOtherException $e) {
+                mainLOG('main','error',"Telegram Error: " . $e->getMessage());
+            } catch (\Exception $e) {
+                mainLOG('main','error',"General Error: " . $e->getMessage());
+            }
+        };
+        $this->pingService->ping($host,$count,$callback);
     }
 }
