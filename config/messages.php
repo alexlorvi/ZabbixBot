@@ -75,33 +75,38 @@ return [
         ],
     ],
     'user' => [
+        'severity' => [
+            0 => "\u{26AA} Not classified",
+            1 => "\u{1F535} Information",
+            2 => "\u{1F7E1} Warning",
+            3 => "\u{1F7E0} Average",
+            4 => "\u{1F534} High",
+            5 => "\u{1F7E3} Disaster",
+        ],
         'UserEventsSummary' => [
-            'Line' => emoji('clock').'%s - /ev%s'.PHP_EOL.
-                      emoji('pushpin').'%s (%s)'.PHP_EOL.
+            'Line' => '%s %s - /ev%s'.PHP_EOL.
+                      emoji('pushpin').' %s (%s)'.PHP_EOL.
+                      emoji('page').' %s'.PHP_EOL.
                       emoji('preatyline'),
             'Count' => 'Total open events - %s',
             'None' => 'You dont have open events',
         ],
         'UserEventsFull' => [
-            'Line' => emoji('clock').' %s'.PHP_EOL.
-                    emoji('pushpin').'%s (%s)'.PHP_EOL.
-                    emoji('preatyline').PHP_EOL.
-                    emoji('page').' %s %s'.PHP_EOL.
-                    emoji('preatyline').PHP_EOL,
+            // args: severity, clock, open for, host name, host, event id, problem name, ack mark
+            'Line' => '%s'.PHP_EOL.
+                      emoji('clock').' %s (%s)'.PHP_EOL.
+                      emoji('pushpin').' %s (%s)'.PHP_EOL.
+                      '/ev%s'.PHP_EOL.
+                      emoji('preatyline').PHP_EOL.
+                      emoji('page').' %s %s'.PHP_EOL,
+            'tagsLine' => "\u{1F3F7} %s".PHP_EOL,
             'ackLine' => emoji('speech').' %s - %s (%s)'.PHP_EOL,
             'Count' => 'Total open events - %s',
             'None' => 'You dont have open events',
         ],
-        'EventById' => [
-            'Line' => emoji('clock')." %s".PHP_EOL.
-                      emoji('pushpin')." %s".PHP_EOL.'%s'.PHP_EOL.
-                      emoji('preatyline').PHP_EOL.
-                      emoji('page').' %s %s'.PHP_EOL.
-                      emoji('preatyline').PHP_EOL,
-            'ackLine' => emoji('speech').' %s - %s (%s)'.PHP_EOL,
-        ],
     ],
     'main' => [
+        'durUnits' => ['d' => 'd', 'h' => 'h', 'm' => 'm'],
         'dateSec' => '%a days, %h hours, %i minutes %s seconds',
     ],
     'languageNames' => [

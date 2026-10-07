@@ -91,31 +91,13 @@ class UserController {
             userLOG($this->userID,'error','Call displayUserEventsFull, but User ID not defined.');
             exit;
         }
-        $events = $this->getUserEvents($severity,$group);
-        if (is_array($events) && count($events)>0) {
+        $events = $this->getUserEvents($severity,$group,$untilTime);
+        if (count($events)>0) {
             $this->messenger->chatActionTyping($this->userID);
-            $blocks = [];
-            foreach($events as $event) {
-                $format =$this->msg->getNested('user.UserEventsFull.Line');
-                $reply = sprintf($format,
-                        date('d/m/Y H:i:s',$event['clock']),
-                        $event['hostName'],
-                        $event['hostHost'],
-                        $event['name'],
-                        $event['acknowledged'] ? unichr(0x2705) : "");
-                $format =$this->msg->getNested('user.UserEventsFull.ackLine');
-                foreach($event['acknowledges'] as $acknowledge) {
-                    $reply .= sprintf($format,
-                              date('d/m/Y H:i:s',$acknowledge['clock']),
-                                 $acknowledge['message'],
-                                 $acknowledge['username']);
-                }
-                $blocks[] = $reply;
-            }
+            $blocks = array_map(fn($e) => $this->formatEvent($e), $events);
             $this->messenger->sendBlocks($this->userID,$blocks);
             $format =$this->msg->getNested('user.UserEventsFull.Count');
-            $reply = sprintf($format,count($events));
-            $this->messenger->sendMessage($this->userID,$reply);
+            $this->messenger->sendMessage($this->userID,sprintf($format,count($events)));
         } else {
             $this->messenger->sendMessage($this->userID,$this->msg->getNested('user.UserEventsFull.None'));
         }
@@ -128,22 +110,22 @@ class UserController {
         }
         $events = $this->getUserEvents($severity,$group);
 
-        if (is_array($events) && count($events)>0) {
+        if (count($events)>0) {
             $this->messenger->chatActionTyping($this->userID);
-            $message = '';
+            $format = $this->msg->getNested('user.UserEventsSummary.Line');
+            $blocks = [];
             foreach($events as $event) {
-                $format =$this->msg->getNested('user.UserEventsSummary.Line'); 
-                $reply = sprintf($format,
+                $blocks[] = sprintf($format,
+                                $this->severityLabel($event['severity'], true),
                                 date('d/m/Y H:i:s',$event['clock']),
                                 $event['eventid'],
                                 $event['hostName'],
-                                $event['hostHost']);
-                $message .= $reply.PHP_EOL;
+                                $event['hostHost'],
+                                $event['name']);
             }
-            $this->messenger->sendMessage($this->userID,$message);
-            $format =$this->msg->getNested('user.UserEventsSummary.Count'); 
-            $reply = sprintf($format,count($events));
-            $this->messenger->sendMessage($this->userID,$reply);
+            $this->messenger->sendBlocks($this->userID,$blocks);
+            $format =$this->msg->getNested('user.UserEventsSummary.Count');
+            $this->messenger->sendMessage($this->userID,sprintf($format,count($events)));
         } else {
             $this->messenger->sendMessage($this->userID,$this->msg->getNested('user.UserEventsSummary.None'));
         }
@@ -152,52 +134,99 @@ class UserController {
     public function displayEventById($eventID){
         $eventInfo = $this->zabbixService->getEventInfo($eventID);
         if (is_array($eventInfo)) {
-            $format =$this->msg->getNested('user.EventById.Line'); 
-            $reply = sprintf($format,
-            date('d/m/Y H:i:s',$eventInfo['clock']),
-                    $eventInfo['hosts']['0']['host'],
-                    $eventInfo['hosts']['0']['name'],
-                    $eventInfo['name'],
-                    ($eventInfo['acknowledged'] ? unichr(0x2705) : ""));
-
-            $format =$this->msg->getNested('user.EventById.ackLine');
-
-            foreach($eventInfo['acknowledges'] as $acknowledge) {
-                $reply .= sprintf($format,
-                          date('d/m/Y H:i:s',$acknowledge['clock']),
-                             $acknowledge['message'],
-                             $acknowledge['username']);
-            }
-          
-            $this->messenger->sendMessage($this->userID,$reply);
+            $this->messenger->sendMessage($this->userID,$this->formatEvent($this->normalizeEvent($eventInfo, $eventInfo)));
         }
     }
 
-    private function getUserEvents($severity=[5],$group=NULL,$untilTime=NULL) {
+    /** Подія в єдиному вигляді з problem.get (може бути порожнім) і event.get (хости, квитування, теги). */
+    private function normalizeEvent(array $problem, array $info): array {
+        return [
+            'eventid' => (string)($problem['eventid'] ?? $info['eventid'] ?? ''),
+            'name' => (string)($problem['name'] ?? $info['name'] ?? ''),
+            'clock' => (int)($problem['clock'] ?? $info['clock'] ?? 0),
+            'severity' => (int)($problem['severity'] ?? $info['severity'] ?? 0),
+            'hostName' => (string)($info['hosts'][0]['name'] ?? ''),
+            'hostHost' => (string)($info['hosts'][0]['host'] ?? ''),
+            'acknowledged' => !empty($problem['acknowledged'] ?? $info['acknowledged'] ?? 0),
+            'acknowledges' => is_array($info['acknowledges'] ?? null) ? $info['acknowledges'] : [],
+            'tags' => is_array($info['tags'] ?? null) ? $info['tags'] : [],
+        ];
+    }
+
+    /** Емодзі + назва рівня критичності (або лише емодзі). */
+    private function severityLabel(int $severity, bool $emojiOnly = false): string {
+        $label = (string)$this->msg->getNested('user.severity.'.$severity, (string)$severity);
+        if ($emojiOnly) {
+            $space = mb_strpos($label, ' ');
+            return $space === false ? $label : mb_substr($label, 0, $space);
+        }
+        return $label;
+    }
+
+    /** "2д 3г" / "3г 15хв" / "15хв" з кількості секунд (одиниці - з i18n main.durUnits). */
+    private function formatDuration(int $seconds): string {
+        $u = $this->msg->getNested('main.durUnits', ['d' => 'd', 'h' => 'h', 'm' => 'm']);
+        $seconds = max(0, $seconds);
+        $d = intdiv($seconds, 86400);
+        $h = intdiv($seconds % 86400, 3600);
+        $m = intdiv($seconds % 3600, 60);
+        if ($d > 0) return $d.$u['d'].' '.$h.$u['h'];
+        if ($h > 0) return $h.$u['h'].' '.$m.$u['m'];
+        return $m.$u['m'];
+    }
+
+    /** Докладний блок однієї події: критичність, час і тривалість, хост, назва, теги, квитування. */
+    private function formatEvent(array $event): string {
+        $reply = sprintf($this->msg->getNested('user.UserEventsFull.Line'),
+            $this->severityLabel($event['severity']),
+            date('d/m/Y H:i:s',$event['clock']),
+            $this->formatDuration(time() - $event['clock']),
+            $event['hostName'] !== '' ? $event['hostName'] : '-',
+            $event['hostHost'] !== '' ? $event['hostHost'] : '-',
+            $event['eventid'],
+            $event['name'],
+            $event['acknowledged'] ? unichr(0x2705) : '');
+
+        $tags = [];
+        foreach ($event['tags'] as $tag) {
+            $tags[] = $tag['tag'].(($tag['value'] ?? '') !== '' ? ':'.$tag['value'] : '');
+        }
+        if ($tags) {
+            $reply .= sprintf($this->msg->getNested('user.UserEventsFull.tagsLine'), implode(', ', $tags));
+        }
+        $format = $this->msg->getNested('user.UserEventsFull.ackLine');
+        foreach($event['acknowledges'] as $acknowledge) {
+            $reply .= sprintf($format,
+                      date('d/m/Y H:i:s',$acknowledge['clock']),
+                      $acknowledge['message'],
+                      $acknowledge['username'] ?? '');
+        }
+        return $reply;
+    }
+
+    /**
+     * Відкриті проблеми користувача, збагачені деталями подій (один batch event.get замість запиту на кожну).
+     * $group - назва або ID групи хостів.
+     * @return list<array<string,mixed>>
+     */
+    private function getUserEvents($severity=[5],$group=NULL,$untilTime=NULL): array {
         $userToken = $this->getUserToken();
         if (!isset($userToken)) {
             exit;
         }
-        $userEvents = $this->zabbixService->getUserProblems($userToken,$severity,$group,$untilTime);
-        userLOG($this->userID,'debug',print_r($userEvents));
-        $responce = [];
-        if (is_array($userEvents) && count($userEvents)>0) {
-            foreach($userEvents as $event) {
-                if (isset($event['eventid'])) {
-                    $eventInfo = $this->zabbixService->getEventInfo($event['eventid']);
-                    userLOG($this->userID,'debug',print_r($eventInfo, true));
-                    $responce[] = [
-                        'eventid' => $event['eventid'],
-                        'name' => $event['name'],
-                        'clock' => $event['clock'],
-                        'hostName' => $eventInfo['hosts']['0']['name'] ?? '',
-                        'hostHost' => $eventInfo['hosts']['0']['host'] ?? '',
-                        'acknowledged' => $eventInfo['acknowledged'] ?? '',
-                        'acknowledges' => $eventInfo['acknowledges'] ?? '',
-                        'tags' => $eventInfo['tags'] ?? '',
-                    ];
-                }
+        $groupId = null;
+        if ($group !== null) {
+            $groupId = ctype_digit((string)$group) ? (string)$group : $this->zabbixService->getGroupIdByName((string)$group);
+            if ($groupId === null) {
+                userLOG($this->userID,'error','Zabbix group not found: '.$group);
+                return [];
             }
+        }
+        $problems = $this->zabbixService->getUserProblems($userToken,$severity,$groupId,$untilTime);
+        $infos = $this->zabbixService->getEventsInfo(array_column($problems, 'eventid'));
+        $responce = [];
+        foreach($problems as $problem) {
+            $responce[] = $this->normalizeEvent($problem, $infos[$problem['eventid']] ?? []);
         }
         return $responce;
     }

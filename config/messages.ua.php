@@ -87,33 +87,38 @@ return [
         ],
     ],
     'user' => [
+        'severity' => [
+            0 => "\u{26AA} Не класифіковано",
+            1 => "\u{1F535} Інформація",
+            2 => "\u{1F7E1} Попередження",
+            3 => "\u{1F7E0} Середня",
+            4 => "\u{1F534} Висока",
+            5 => "\u{1F7E3} Аварія",
+        ],
         'UserEventsSummary' => [
-            'Line' => emoji('clock').'%s - /ev%s'.PHP_EOL.
-                      emoji('pushpin').'%s (%s)'.PHP_EOL.
+            'Line' => '%s %s - /ev%s'.PHP_EOL.
+                      emoji('pushpin').' %s (%s)'.PHP_EOL.
+                      emoji('page').' %s'.PHP_EOL.
                       emoji('preatyline'),
             'Count' => 'Всього не закрито подій - %s',
             'None' => 'У Вас немає відкритих інцидентів',
         ],
         'UserEventsFull' => [
-            'Line' => emoji('clock').' %s'.PHP_EOL.
-                    emoji('pushpin').'%s (%s)'.PHP_EOL.
-                    emoji('preatyline').PHP_EOL.
-                    emoji('page').' %s %s'.PHP_EOL.
-                    emoji('preatyline').PHP_EOL,
+            // args: severity, clock, open for, host name, host, event id, problem name, ack mark
+            'Line' => '%s'.PHP_EOL.
+                      emoji('clock').' %s (%s)'.PHP_EOL.
+                      emoji('pushpin').' %s (%s)'.PHP_EOL.
+                      '/ev%s'.PHP_EOL.
+                      emoji('preatyline').PHP_EOL.
+                      emoji('page').' %s %s'.PHP_EOL,
+            'tagsLine' => "\u{1F3F7} %s".PHP_EOL,
             'ackLine' => emoji('speech').' %s - %s (%s)'.PHP_EOL,
             'Count' => 'Всього не закрито подій - %s',
             'None' => 'У Вас немає відкритих інцидентів',
         ],
-        'EventById' => [
-            'Line' => emoji('clock')." %s".PHP_EOL.
-                      emoji('pushpin')." %s".PHP_EOL.'%s'.PHP_EOL.
-                      emoji('preatyline').PHP_EOL.
-                      emoji('page').' %s %s'.PHP_EOL.
-                      emoji('preatyline').PHP_EOL,
-            'ackLine' => emoji('speech').' %s - %s (%s)'.PHP_EOL,
-        ],
     ],
     'main' => [
+        'durUnits' => ['d' => 'д', 'h' => 'г', 'm' => 'хв'],
         'dateSec' => '%a днів, %h годин, %i хвилин %s секунд',
     ],
     'languageNames' => [

@@ -213,18 +213,20 @@ class ZabbixService {
 
     /**
      * Активні проблеми користувача (його токеном - діють його права доступу).
-     * Лише ті, чиї тригери і хости ввімкнені.
+     * Лише ті, чиї тригери ввімкнені і належать до ввімкнених (monitored) хостів; вимкнені/не моніторяться відсікаються.
+     * @param list<int|string>|null $severity null = усі рівні
+     * @param string|null $groupID ID групи хостів (не назва)
      * @return list<array<string,mixed>>
      */
-    public function getUserProblems(string $userToken,$severity=['5'],$groupID=NULL,$timeTill=NULL) {
+    public function getUserProblems(string $userToken, ?array $severity = ['5'], $groupID = NULL, $timeTill = NULL) {
         $request = [
-            'output' => ['eventid','clock','name','objectid'],
-            'severities' => $severity,
+            'output' => ['eventid','clock','name','objectid','severity','acknowledged'],
             'sortfield' => 'eventid',
             'sortorder' => 'DESC',
             'source' => 0,
             'object' => 0,
         ];
+        if ($severity !== null) $request['severities'] = array_map('intval', $severity);
         if (isset($groupID)) $request['groupids'] = $groupID;
         if (isset($timeTill)) $request['time_till'] = $timeTill;
         $problems = $this->request('problem.get',$request,$userToken);
@@ -236,20 +238,42 @@ class ZabbixService {
             'triggerids' => array_values(array_unique(array_column($problems, 'objectid'))),
             'monitored' => true,
             'active' => true,
+            'filter' => ['status' => 0],
         ], $userToken);
-        $validIds = array_flip(array_column((array)$valid, 'triggerid'));
+        if (!is_array($valid)) {
+            return [];
+        }
+        $validIds = array_flip(array_column($valid, 'triggerid'));
         return array_values(array_filter($problems, fn($p) => isset($validIds[$p['objectid']])));
     }
 
-    public function getEventInfo($eventID){
+    /**
+     * Деталі подій одним запитом (хости, квитування, теги), ключ - eventid.
+     * @param list<string> $eventIds
+     * @return array<string,array<string,mixed>>
+     */
+    public function getEventsInfo(array $eventIds): array {
+        if (!$eventIds) {
+            return [];
+        }
         $result = $this->request('event.get',[
-            'output' => ['acknowledged','name','clock'],
+            'output' => ['eventid','acknowledged','name','clock','severity'],
             'select_acknowledges' => ['clock','message','username'],
             'selectTags' => 'extend',
             'selectHosts' => ['host','name'],
-            'eventids' => $eventID
-          ]);
-        return (is_array($result) && is_array($result[0] ?? null)) ? $result[0] : null;
+            'eventids' => array_values($eventIds),
+        ]);
+        $map = [];
+        foreach ((array)$result as $event) {
+            if (is_array($event) && isset($event['eventid'])) {
+                $map[(string)$event['eventid']] = $event;
+            }
+        }
+        return $map;
+    }
+
+    public function getEventInfo($eventID){
+        return $this->getEventsInfo([(string)$eventID])[(string)$eventID] ?? null;
     }
 
     public function getGroups($withHosts=true, $userToken=NULL) {
