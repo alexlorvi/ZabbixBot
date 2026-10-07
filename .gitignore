@@ -8,3 +8,4 @@ composer.lock
 /tokens/*.key
 *.log
 .phpunit.result.cache
+/alerts/*.json

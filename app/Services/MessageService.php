@@ -23,20 +23,33 @@ class MessageService {
         $this->telegram->sendChatAction(['chat_id'=>$chatID,'action' => Actions::TYPING]);
     }
 
-    public function sendMessage($chatId,string $message,$options = []) {
+    /**
+     * Надсилає повідомлення (з розбиттям на частини). Повертає message_id першої доставленої частини
+     * або null, якщо нічого не доставлено (тоді повідомлення вже у черзі повторів).
+     * Опція keep_keyboard=true - не знімати reply-клавіатуру користувача (для сповіщень).
+     */
+    public function sendMessage($chatId,string $message,$options = []): ?int {
         if (trim($message) === '') {
             userLOG($chatId,'error','Empty message skipped');
-            return;
+            return null;
         }
+        $keepKeyboard = !empty($options['keep_keyboard']);
+        unset($options['keep_keyboard']);
         $this->chatActionTyping($chatId);
         $isHtml = strtolower((string)($options['parse_mode'] ?? '')) === 'html';
+        $firstId = null;
         foreach (self::chunk($message, $isHtml) as $messageline) {
-            $sendArray = $this->prepareParams(array_merge([
+            $sendArray = array_merge([
                 'chat_id' => $chatId,
                 'text' => $messageline,
-            ],$options));
+            ],$options);
+            if (!$keepKeyboard) {
+                $sendArray = $this->prepareParams($sendArray);
+            }
             try {
-                $this->telegram->sendMessage($sendArray);
+                $sent = $this->telegram->sendMessage($sendArray);
+                $sentArr = $sent->toArray();
+                $firstId ??= (int)($sentArr['message_id'] ?? $sentArr['result']['message_id'] ?? 0);
                 userLOG($chatId,'info','< '.$messageline);
             } catch (\Exception $e) {
                 // If there's an error, enqueue the message
@@ -44,6 +57,7 @@ class MessageService {
                 $this->messageQueue->enqueue($sendArray);
             }
         }
+        return $firstId ?: null;
     }
 
     /** Редагує вже надіслане повідомлення (для панелей на callback_query, щоб не плодити нові повідомлення). */

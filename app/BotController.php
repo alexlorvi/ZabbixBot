@@ -13,6 +13,7 @@ use ZabbixBot\Services\LangService;
 use ZabbixBot\Services\RateLimiter;
 use ZabbixBot\Services\UpdateDeduplicator;
 use ZabbixBot\Services\Router;
+use ZabbixBot\Services\TelegramFactory;
 use DateTime;
 
 /**
@@ -33,12 +34,7 @@ class BotController {
 
         $this->msg = LangService::getInstance();
 
-        $this->tgBot = new Api($this->config['bot_token']);
-        if (isset($this->config['proxy'])) {
-            $httpClient = new CustomHttpClient();
-            $httpClient->setProxy($this->config['proxy']);
-            $this->tgBot->setHttpClientHandler($httpClient);
-        }
+        $this->tgBot = TelegramFactory::make($this->config);
 
         if (isset($this->config['commands']) && is_array($this->config['commands'])) {
             $this->tgBot->addCommands($this->config['commands']);

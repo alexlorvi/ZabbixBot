@@ -62,6 +62,15 @@ return [
             ],
         ],
     ],
+    // Прийом сповіщень з Zabbix (alert.php, див. docs/zabbix-alerts.md)
+    'alerts' => [
+        // Спільний секрет (заголовок X-Alert-Token). Порожній - alert.php вимкнений (503).
+        'token' => '',
+        // Скільки днів пам'ятати message_id проблеми, яка так і не відновилась
+        'ttl_days' => 30,
+        // Слати лише користувачам, відомим у Zabbix (за медіа Telegram)
+        'require_known_user' => true,
+    ],
     'net' => [
         // Community-рядки для SNMP-діагностики (/cisco, /apc)
         'snmp_community_cisco' => '',
