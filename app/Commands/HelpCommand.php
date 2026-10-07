@@ -5,6 +5,8 @@ namespace ZabbixBot\Commands;
 use \Telegram\Bot\Actions;
 use \Telegram\Bot\Commands\Command;
 use ZabbixBot\Services\LangService;
+use ZabbixBot\Services\MessageService;
+use ZabbixBot\UserController;
 
 class HelpCommand extends Command {
     protected string $name = 'help';
@@ -28,14 +30,10 @@ class HelpCommand extends Command {
         # This will update the chat status to "typing..."
         $this->replyWithChatAction(['action' => Actions::TYPING]);
 
-        # Get all the registered commands.
-        $commands = $this->getTelegram()->getCommands();
+        # Get all the registered commands (admin-only ones are hidden from non-admins).
+        $chatId = $this->getUpdate()->getMessage()->getChat()->getId();
+        $user = new UserController(new MessageService($this->getTelegram()), $chatId);
 
-        $response = '';
-        foreach ($commands as $name => $command) {
-            $response .= sprintf('/%s - %s' . PHP_EOL, $name, $command->getDescription());
-        }
-
-        $this->replyWithMessage(['text' => $response]);
+        $this->replyWithMessage(['text' => $user->commandListText((array)$this->getTelegram()->getCommands())]);
     }
 }

@@ -14,6 +14,8 @@ class ZabbixService {
     private string $zabbixKey;
     private ZabbixApi $zabbixApi;
     private FileCache $cache;
+    /** Токен, під яким zabbixApi уже залогінений (щоб не логінитись на кожен виклик). */
+    private ?string $loggedToken = null;
 
     public function __construct() {
         $cfg = ConfigService::getInstance();
@@ -432,7 +434,11 @@ class ZabbixService {
     private function request(string $zabbixMethod, array $params = [],string $userToken = null) {
         try {
             $token = $userToken ?? $this->zabbixKey;
-            $this->zabbixApi->loginToken($this->zabbixHost, $token);
+            if ($this->loggedToken !== $token) {
+                $this->loggedToken = null;
+                $this->zabbixApi->loginToken($this->zabbixHost, $token);
+                $this->loggedToken = $token;
+            }
             $result = $this->zabbixApi->call($zabbixMethod,$params);
             return $result;
         } catch (ZabbixApiException $ae) {

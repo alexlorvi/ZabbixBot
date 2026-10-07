@@ -48,6 +48,8 @@ return [
             'summary_button' => unichr(0x1F4CB).' Список активних',
             'help_button' => "\u{2754} Довідка",
             'settings_button' => "\u{2699}\u{FE0F} Налаштування",
+            'admin_badge' => "\u{1F511} Статус: адміністратор",
+            'reset_button' => "\u{1F504} Скинути кеш",
         ],
         'settings' => [
             'description' => 'Персональні налаштування: мова, рівень критичності сповіщень, стиль /menu',

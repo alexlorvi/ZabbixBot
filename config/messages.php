@@ -36,6 +36,8 @@ return [
             'summary_button' => unichr(0x1F4CB)." Summary Report",
             'help_button' => "\u{2754} Help",
             'settings_button' => "\u{2699}\u{FE0F} Settings",
+            'admin_badge' => "\u{1F511} Status: administrator",
+            'reset_button' => "\u{1F504} Reset cache",
         ],
         'settings' => [
             'description' => 'Personal settings: language, notification severity, /menu style',

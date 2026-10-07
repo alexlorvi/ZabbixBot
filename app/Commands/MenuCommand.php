@@ -47,6 +47,9 @@ class MenuCommand extends Command {
     /** @return array{0:string,1:Keyboard} */
     public function renderInline(UserController $user): array {
         $text = $this->msg->getNested('command.'.$this->name.'.message');
+        if ($user->isAdmin()) {
+            $text .= PHP_EOL.$this->msg->getNested('command.menu.admin_badge');
+        }
 
         $keyboard = Keyboard::make()->inline();
         $keyboard->row([Keyboard::inlineButton([
@@ -65,6 +68,12 @@ class MenuCommand extends Command {
             'text' => $this->msg->getNested('command.menu.settings_button'),
             'callback_data' => 'set:open',
         ])]);
+        if ($user->isAdmin()) {
+            $keyboard->row([Keyboard::inlineButton([
+                'text' => $this->msg->getNested('command.menu.reset_button'),
+                'callback_data' => 'menu:reset',
+            ])]);
+        }
 
         return [$text, $keyboard];
     }

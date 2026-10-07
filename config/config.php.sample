@@ -28,6 +28,8 @@ return [
             ZabbixBot\Commands\StartCommand::class,
             ZabbixBot\Commands\HelpCommand::class,
         ],
+        // Команди, які бачать у /help лише адміни (членство в zabbix.admin_group). За замовчуванням ['reset'].
+        'admin_commands' => ['reset'],
         'user_commands' => [
             ZabbixBot\Commands\PingCommand::class,
             ZabbixBot\Commands\GroupEventsCommand::class,

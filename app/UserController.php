@@ -3,6 +3,8 @@
 namespace ZabbixBot;
 
 use ZabbixBot\Services\ZabbixService;
+use ZabbixBot\Services\EventFormatter;
+use ZabbixBot\Services\CommandList;
 use ZabbixBot\Services\LangService;
 use ZabbixBot\Services\ConfigService;
 use ZabbixBot\Services\MessageService;
@@ -94,7 +96,8 @@ class UserController {
         $events = $this->getUserEvents($severity,$group,$untilTime);
         if (count($events)>0) {
             $this->messenger->chatActionTyping($this->userID);
-            $blocks = array_map(fn($e) => $this->formatEvent($e), $events);
+            $i18n = $this->eventI18n();
+            $blocks = array_map(fn($e) => EventFormatter::format($e, $i18n, time()), $events);
             $this->messenger->sendBlocks($this->userID,$blocks,$this->ticketSeparator());
             $format =$this->msg->getNested('user.UserEventsFull.Count');
             $this->messenger->sendMessage($this->userID,sprintf($format,count($events)));
@@ -112,17 +115,8 @@ class UserController {
 
         if (count($events)>0) {
             $this->messenger->chatActionTyping($this->userID);
-            $format = $this->msg->getNested('user.UserEventsSummary.Line');
-            $blocks = [];
-            foreach($events as $event) {
-                $blocks[] = sprintf($format,
-                                $this->severityLabel($event['severity'], true),
-                                date('d/m/Y H:i:s',$event['clock']),
-                                $event['eventid'],
-                                $event['hostName'],
-                                $event['hostHost'],
-                                $event['name']);
-            }
+            $i18n = $this->eventI18n();
+            $blocks = array_map(fn($e) => EventFormatter::summary($e, $i18n), $events);
             $this->messenger->sendBlocks($this->userID,$blocks,$this->ticketSeparator());
             $format =$this->msg->getNested('user.UserEventsSummary.Count');
             $this->messenger->sendMessage($this->userID,sprintf($format,count($events)));
@@ -134,8 +128,20 @@ class UserController {
     public function displayEventById($eventID){
         $eventInfo = $this->zabbixService->getEventInfo($eventID);
         if (is_array($eventInfo)) {
-            $this->messenger->sendMessage($this->userID,$this->formatEvent($this->normalizeEvent($eventInfo, $eventInfo)));
+            $this->messenger->sendMessage($this->userID,EventFormatter::format(EventFormatter::normalize($eventInfo, $eventInfo), $this->eventI18n(), time()));
         }
+    }
+
+    /** i18n-рядки форматування подій для EventFormatter. */
+    private function eventI18n(): array {
+        return [
+            'severity' => (array)$this->msg->getNested('user.severity', []),
+            'line' => $this->msg->getNested('user.UserEventsFull.Line'),
+            'summaryLine' => $this->msg->getNested('user.UserEventsSummary.Line'),
+            'tagsLine' => $this->msg->getNested('user.UserEventsFull.tagsLine'),
+            'ackLine' => $this->msg->getNested('user.UserEventsFull.ackLine'),
+            'units' => $this->msg->getNested('main.durUnits', ['d' => 'd', 'h' => 'h', 'm' => 'm']),
+        ];
     }
 
     /** Роздільник між блоками подій у загальному переліку. */
@@ -143,70 +149,29 @@ class UserController {
         return PHP_EOL.emoji('preatyline').PHP_EOL;
     }
 
-    /** Подія в єдиному вигляді з problem.get (може бути порожнім) і event.get (хости, квитування, теги). */
-    private function normalizeEvent(array $problem, array $info): array {
-        return [
-            'eventid' => (string)($problem['eventid'] ?? $info['eventid'] ?? ''),
-            'name' => (string)($problem['name'] ?? $info['name'] ?? ''),
-            'clock' => (int)($problem['clock'] ?? $info['clock'] ?? 0),
-            'severity' => (int)($problem['severity'] ?? $info['severity'] ?? 0),
-            'hostName' => (string)($info['hosts'][0]['name'] ?? ''),
-            'hostHost' => (string)($info['hosts'][0]['host'] ?? ''),
-            'acknowledged' => !empty($problem['acknowledged'] ?? $info['acknowledged'] ?? 0),
-            'acknowledges' => is_array($info['acknowledges'] ?? null) ? $info['acknowledges'] : [],
-            'tags' => is_array($info['tags'] ?? null) ? $info['tags'] : [],
-        ];
+    public function isAdmin(): bool {
+        return $this->isZabbixUser && $this->zabbixService->isAdmin((string)$this->userID);
     }
 
-    /** Емодзі + назва рівня критичності (або лише емодзі). */
-    private function severityLabel(int $severity, bool $emojiOnly = false): string {
-        $label = (string)$this->msg->getNested('user.severity.'.$severity, (string)$severity);
-        if ($emojiOnly) {
-            $space = mb_strpos($label, ' ');
-            return $space === false ? $label : mb_substr($label, 0, $space);
+    /** Скидає кеш користувачів/груп Zabbix; лише для адмінів. @return bool false, якщо не адмін */
+    public function resetCache(): bool {
+        if (!$this->isAdmin()) {
+            return false;
         }
-        return $label;
+        $this->zabbixService->resetUserCache();
+        return true;
     }
 
-    /** "2д 3г" / "3г 15хв" / "15хв" з кількості секунд (одиниці - з i18n main.durUnits). */
-    private function formatDuration(int $seconds): string {
-        $u = $this->msg->getNested('main.durUnits', ['d' => 'd', 'h' => 'h', 'm' => 'm']);
-        $seconds = max(0, $seconds);
-        $d = intdiv($seconds, 86400);
-        $h = intdiv($seconds % 86400, 3600);
-        $m = intdiv($seconds % 3600, 60);
-        if ($d > 0) return $d.$u['d'].' '.$h.$u['h'];
-        if ($h > 0) return $h.$u['h'].' '.$m.$u['m'];
-        return $m.$u['m'];
-    }
-
-    /** Докладний блок однієї події: критичність, час і тривалість, хост, назва, теги, квитування. */
-    private function formatEvent(array $event): string {
-        $reply = sprintf($this->msg->getNested('user.UserEventsFull.Line'),
-            $this->severityLabel($event['severity']),
-            date('d/m/Y H:i:s',$event['clock']),
-            $this->formatDuration(time() - $event['clock']),
-            $event['hostName'] !== '' ? $event['hostName'] : '-',
-            $event['hostHost'] !== '' ? $event['hostHost'] : '-',
-            $event['eventid'],
-            $event['name'],
-            $event['acknowledged'] ? unichr(0x2705) : '');
-
-        $tags = [];
-        foreach ($event['tags'] as $tag) {
-            $tags[] = $tag['tag'].(($tag['value'] ?? '') !== '' ? ':'.$tag['value'] : '');
+    /** Текст довідки зі списком команд; адмінські команди (telegram.admin_commands, за замовчуванням reset) - лише адмінам. */
+    public function commandListText(array $commands): string {
+        $descriptions = [];
+        foreach ($commands as $name => $command) {
+            $descriptions[$name] = $command->getDescription();
         }
-        if ($tags) {
-            $reply .= sprintf($this->msg->getNested('user.UserEventsFull.tagsLine'), implode(', ', $tags));
-        }
-        $format = $this->msg->getNested('user.UserEventsFull.ackLine');
-        foreach($event['acknowledges'] as $acknowledge) {
-            $reply .= sprintf($format,
-                      date('d/m/Y H:i:s',$acknowledge['clock']),
-                      $acknowledge['message'],
-                      $acknowledge['author'] ?? $acknowledge['username'] ?? $acknowledge['userid'] ?? '');
-        }
-        return $reply;
+        $adminOnly = (array)ConfigService::getInstance()->getNested('telegram.admin_commands', ['reset']);
+        $isAdmin = $this->isAdmin();
+        $text = CommandList::render($descriptions, $adminOnly, $isAdmin);
+        return $isAdmin ? $this->msg->getNested('command.menu.admin_badge').PHP_EOL.$text : $text;
     }
 
     /**
@@ -231,7 +196,7 @@ class UserController {
         $infos = $this->zabbixService->getEventsInfo(array_column($problems, 'eventid'));
         $responce = [];
         foreach($problems as $problem) {
-            $responce[] = $this->normalizeEvent($problem, $infos[$problem['eventid']] ?? []);
+            $responce[] = EventFormatter::normalize($problem, $infos[$problem['eventid']] ?? []);
         }
         return $responce;
     }

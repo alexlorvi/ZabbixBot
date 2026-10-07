@@ -12,6 +12,7 @@ use ZabbixBot\Services\MessageService;
 use ZabbixBot\Services\LangService;
 use ZabbixBot\Services\RateLimiter;
 use ZabbixBot\Services\UpdateDeduplicator;
+use ZabbixBot\Services\Router;
 use DateTime;
 
 /**
@@ -72,8 +73,7 @@ class BotController {
     }
 
     public function handleWebhook():void {
-        $secret = (string)($this->config['webhook_secret'] ?? '');
-        if ($secret !== '' && !hash_equals($secret, (string)($_SERVER['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN'] ?? ''))) {
+        if (!Router::secretValid((string)($this->config['webhook_secret'] ?? ''), (string)($_SERVER['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN'] ?? ''))) {
             mainLOG('main','warning','Webhook secret mismatch from '.($_SERVER['REMOTE_ADDR'] ?? '?'));
             http_response_code(403);
             return;
@@ -137,23 +137,23 @@ class BotController {
         // Registered User Area
         if ($this->user->isUser()) {
             $menu = $this->msg->getNested('command.menu.menuaction') ?? [] ;
-            switch (true) {
-                case (preg_match('/^\/ev([0-9])+$/i', $text)):
-                    // Command in format /ev{\d+}
-                    $this->user->displayEventById(substr($text, 3));
+            [$kind, $arg] = Router::classify((string)$text, $menu);
+            switch ($kind) {
+                case 'ev':
+                    $this->user->displayEventById($arg);
                     break;
 
-                case (preg_match('/^\/hostid([0-9]+)$/i', $text)):
+                case 'hostid':
                     // Натискання inline-кнопки хоста зі списку результатів /host
                     $token = $this->user->getUserToken();
                     if ($token !== null) {
-                        (new \ZabbixBot\Commands\HostCommand())->showHost($this->message, $chatId, $token, substr($text, strlen('/hostid')));
+                        (new \ZabbixBot\Commands\HostCommand())->showHost($this->message, $chatId, $token, $arg);
                     }
                     break;
 
-                case (str_starts_with($text, 'menu:')):
+                case 'menu':
                     // Натискання кнопки inline-варіанту /menu
-                    switch (substr($text, strlen('menu:'))) {
+                    switch ($arg) {
                         case 'full':
                             $this->user->displayUserEventsFull();
                             break;
@@ -161,18 +161,17 @@ class BotController {
                             $this->user->displayUserEventsSummary();
                             break;
                         case 'help':
-                            $response = '';
-                            foreach ((array)$this->tgBot->getCommands() as $name => $command) {
-                                $response .= sprintf('/%s - %s'.PHP_EOL, $name, $command->getDescription());
-                            }
-                            $this->message->sendMessage($chatId, $response);
+                            $this->message->sendMessage($chatId, $this->user->commandListText((array)$this->tgBot->getCommands()));
+                            break;
+                        case 'reset':
+                            $this->message->sendMessage($chatId, $this->user->resetCache() ? 'Кеш користувачів і груп очищено' : 'Га?');
                             break;
                     }
                     break;
 
-                case (str_starts_with($text, 'set:')):
+                case 'set':
                     // Натискання кнопки панелі налаштувань (SettingsCommand) - все через editMessage
-                    $parts = explode(':', substr($text, strlen('set:')));
+                    $parts = explode(':', $arg);
                     $settings = new \ZabbixBot\Commands\SettingsCommand();
                     if (($parts[0] ?? '') === 'open') {
                         $settings->editOpen($this->message, $this->user, $chatId, $messageId);
@@ -181,38 +180,28 @@ class BotController {
                     }
                     break;
 
-                case (preg_match('/^\/([0-9])+sec$/i', $text)):
+                case 'sec':
                     // Command in format /{\d+}sec
-                    $sec = substr($text,strlen('/'),strlen($text)-(strlen('sec')+1));
                     $dtF = new DateTime('@0');
-                    $dtT = new DateTime("@$sec");
-                    $reply = $dtF->diff($dtT)->format($this->msg->getNested('main.dateSec'));
-                    $this->message->sendMessage($chatId,$reply);
+                    $dtT = new DateTime("@$arg");
+                    $this->message->sendMessage($chatId,$dtF->diff($dtT)->format($this->msg->getNested('main.dateSec')));
                     break;
 
-                case (preg_match('/^\/([0-9])+h$/i', $text)):
+                case 'hours':
                     // Command in format /{\d+}h. Old preset /24h /72h
-                    $time = strtotime('-'.substr($text,1,strlen($text)-2).' hour', time());
-                    $this->user->displayUserEventsFull(null,null,$time);
+                    $this->user->displayUserEventsFull(null,null,strtotime('-'.$arg.' hour', time()));
                     break;
 
-                /* case ($text == '123'):
-                    $this->user->displayUserEventsSummary();
-                    break;
-
-                case ($text == '321'):
-                    $this->user->displayUserEventsFull();
-                    break; */
-                case (array_key_exists($text,$menu)):
+                case 'menuaction':
                     $this->message->sendMessage($chatId,'Menu option');
-                    $this->checkKeyboard($text);
+                    $this->checkKeyboard($arg);
                     break;
-    
-                case (!str_starts_with($text, '/')):
+
+                case 'text':
                     //another text formats
                     break;
 
-                case (str_starts_with($text, '/')):
+                case 'command':
                     //other commands to the default CommandsHandler
                     if (is_array($this->tgBot->getCommands()) && 
                         count($this->tgBot->getCommands())>1) {
