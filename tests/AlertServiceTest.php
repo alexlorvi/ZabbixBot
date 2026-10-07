@@ -62,8 +62,10 @@ final class AlertServiceTest extends TestCase
         $svc->handle($this->payload());
         $r = $svc->handle($this->payload(['subject' => 'Resolved: Door', 'event_value' => '0']));
         $this->assertSame('recovery+reply', $r['mode']);
-        $this->assertSame(500, $this->sent[1][2]['reply_parameters']['message_id']);
-        $this->assertTrue($this->sent[1][2]['reply_parameters']['allow_sending_without_reply']);
+        $reply = json_decode($this->sent[1][2]['reply_parameters'], true);
+        $this->assertSame(500, $reply['message_id']);
+        $this->assertTrue($reply['allow_sending_without_reply']);
+        $this->assertSame(['event_id' => '900', 'chat_id' => '42', 'mode' => 'recovery'], $this->sent[1][2]['alert']);
         $this->assertFileDoesNotExist($this->dir.'/900_42.json');
     }
 
@@ -80,7 +82,7 @@ final class AlertServiceTest extends TestCase
         $svc = $this->service();
         $svc->handle($this->payload());
         $svc->handle($this->payload(['event_update_status' => '1', 'subject' => 'Updated']));
-        $this->assertSame(500, $this->sent[1][2]['reply_parameters']['message_id']);
+        $this->assertSame(500, json_decode($this->sent[1][2]['reply_parameters'], true)['message_id']);
         $this->assertFileExists($this->dir.'/900_42.json');
     }
 
@@ -90,7 +92,7 @@ final class AlertServiceTest extends TestCase
         $svc->handle($this->payload(['sendto' => '1']));
         $svc->handle($this->payload(['sendto' => '2']));
         $svc->handle($this->payload(['sendto' => '2', 'event_value' => '0']));
-        $this->assertSame(501, $this->sent[2][2]['reply_parameters']['message_id']);
+        $this->assertSame(501, json_decode($this->sent[2][2]['reply_parameters'], true)['message_id']);
         $this->assertFileExists($this->dir.'/900_1.json');
     }
 
@@ -101,6 +103,16 @@ final class AlertServiceTest extends TestCase
         $this->assertTrue($r['ok']);
         $this->assertNull($r['message_id']);
         $this->assertFileDoesNotExist($this->dir.'/900_42.json');
+    }
+
+    public function testQueuedRecoveryKeepsRecordUntilDelivered(): void
+    {
+        $svc = $this->service();
+        $svc->handle($this->payload());
+        $this->nextId = null; // Telegram недоступний: sendMessage повертає null (повідомлення в черзі)
+        $svc->handle($this->payload(['event_value' => '0']));
+        $this->assertFileExists($this->dir.'/900_42.json', 'record is removed by the queue retry after delivery');
+        $this->assertNotNull(json_decode($this->sent[1][2]['reply_parameters'], true)['message_id']);
     }
 
     public function testValidation(): void

@@ -24,12 +24,7 @@ if (php_sapi_name() != 'cli') {
 $config = ConfigService::getInstance()->getNested('telegram');
 
 // Initialize the Telegram API
-$telegram = new Api($config['bot_token']);
-if (isset($config['proxy'])) {
-    $httpClient = new CustomHttpClient();
-    $httpClient->setProxy($config['proxy']);
-    $telegram->setHttpClientHandler($httpClient);
-}
+$telegram = \ZabbixBot\Services\TelegramFactory::make($config);
 
 // Initialize the MessageService
 $messageService = new MessageService($telegram);

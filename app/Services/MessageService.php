@@ -5,6 +5,7 @@ namespace ZabbixBot\Services;
 use Telegram\Bot\Api;
 use Telegram\Bot\Actions;
 use Telegram\Bot\Keyboard\Keyboard;
+use Telegram\Bot\Exceptions\TelegramResponseException;
 use ZabbixBot\Services\MessageQueue;
 
 class MessageService {
@@ -13,10 +14,16 @@ class MessageService {
 
     protected Api $telegram;
     protected MessageQueue $messageQueue;
+    private ?AlertStore $alerts;
 
-    public function __construct(Api $tgApi) {
+    public function __construct(Api $tgApi, ?AlertStore $alerts = null) {
         $this->telegram = $tgApi;
         $this->messageQueue = new MessageQueue();
+        $this->alerts = $alerts;
+    }
+
+    private function alerts(): AlertStore {
+        return $this->alerts ??= new AlertStore(ALERT_PATH, (int)ConfigService::getInstance()->getNested('alerts.ttl_days', 30));
     }
 
     public function chatActionTyping( $chatID) {
@@ -26,7 +33,9 @@ class MessageService {
     /**
      * Надсилає повідомлення (з розбиттям на частини). Повертає message_id першої доставленої частини
      * або null, якщо нічого не доставлено (тоді повідомлення вже у черзі повторів).
-     * Опція keep_keyboard=true - не знімати reply-клавіатуру користувача (для сповіщень).
+     * Опції: keep_keyboard=true - не знімати reply-клавіатуру користувача (для сповіщень);
+     * alert={event_id,chat_id,mode} - сповіщення Zabbix: якщо воно потрапить у чергу, після доставки
+     * через app:retry-messages оновиться AlertStore, а для тієї ж події в черзі порядок зберігається.
      */
     public function sendMessage($chatId,string $message,$options = []): ?int {
         if (trim($message) === '') {
@@ -34,10 +43,13 @@ class MessageService {
             return null;
         }
         $keepKeyboard = !empty($options['keep_keyboard']);
-        unset($options['keep_keyboard']);
+        $alert = $options['alert'] ?? null;
+        unset($options['keep_keyboard'], $options['alert']);
         $this->chatActionTyping($chatId);
         $isHtml = strtolower((string)($options['parse_mode'] ?? '')) === 'html';
+        $mustQueue = $alert !== null && $this->messageQueue->hasAlert((string)$alert['event_id'], (string)$alert['chat_id']);
         $firstId = null;
+        $first = true;
         foreach (self::chunk($message, $isHtml) as $messageline) {
             $sendArray = array_merge([
                 'chat_id' => $chatId,
@@ -45,6 +57,15 @@ class MessageService {
             ],$options);
             if (!$keepKeyboard) {
                 $sendArray = $this->prepareParams($sendArray);
+            }
+            if (isset($sendArray['reply_markup']) && !is_string($sendArray['reply_markup'])) {
+                $sendArray['reply_markup'] = (string)$sendArray['reply_markup']; // у черзі лежить JSON-рядок
+            }
+            $queueItem = ($first && $alert !== null) ? $sendArray + ['_alert' => $alert] : $sendArray;
+            $first = false;
+            if ($mustQueue) {
+                $this->messageQueue->enqueue($queueItem);
+                continue;
             }
             try {
                 $sent = $this->telegram->sendMessage($sendArray);
@@ -54,7 +75,8 @@ class MessageService {
             } catch (\Exception $e) {
                 // If there's an error, enqueue the message
                 userLOG($chatId,'error','Send Error - '.$e->getMessage().PHP_EOL.'Enqueue it.');
-                $this->messageQueue->enqueue($sendArray);
+                $this->messageQueue->enqueue($queueItem);
+                $mustQueue = true; // наступні частини - слідом, щоб не порушити порядок
             }
         }
         return $firstId ?: null;
@@ -164,19 +186,52 @@ class MessageService {
         return $out;
     }
 
-    // CopyPaste from Copilot. Edit before use
-    public function retryMessages() {
-        while ($this->messageQueue->getQueueSize() > 0) {
-            $message = $this->messageQueue->dequeue();
+    /**
+     * Висилає повідомлення з черги по порядку (не більше $limit). Зупиняється на першій тимчасовій помилці
+     * (Telegram/проксі ще недоступні), нічого не втрачаючи. Назавжди відхилені (HTTP 400/403, напр. бот заблокований)
+     * відкидаються, щоб не заблокувати чергу. Для сповіщень Zabbix після доставки оновлює AlertStore
+     * (проблема - запам'ятати message_id, відновлення - забути запис; відповідь на проблему визначається саме тут).
+     * @return int скільки доставлено
+     */
+    public function retryMessages(int $limit = PHP_INT_MAX): int {
+        $delivered = 0;
+        while ($delivered < $limit && ($item = $this->messageQueue->peek()) !== null) {
+            $alert = $item['_alert'] ?? null;
+            unset($item['_alert']);
+            if (isset($item['reply_markup']) && !is_string($item['reply_markup'])) {
+                $item['reply_markup'] = json_encode($item['reply_markup']);
+            }
+            if ($alert !== null && $alert['mode'] !== 'problem' && !isset($item['reply_parameters'])) {
+                $replyTo = $this->alerts()->get((string)$alert['event_id'], (string)$alert['chat_id']);
+                if ($replyTo !== null) {
+                    $item['reply_parameters'] = json_encode(['message_id' => $replyTo, 'allow_sending_without_reply' => true]);
+                }
+            }
             try {
-                $this->sendMessage($message['chat_id'], $message['text']);
+                $sent = $this->telegram->sendMessage($item)->toArray();
+                $messageId = (int)($sent['message_id'] ?? $sent['result']['message_id'] ?? 0);
+            } catch (TelegramResponseException $e) {
+                if (!in_array($e->getHttpStatusCode(), [400, 403], true)) {
+                    userLOG($item['chat_id'],'error','Retry stopped - '.$e->getMessage());
+                    break;
+                }
+                userLOG($item['chat_id'],'error','Dropped undeliverable queued message - '.$e->getMessage());
+                $messageId = 0;
             } catch (\Exception $e) {
-                // Re-enqueue the message if it fails again
-                $this->messageQueue->enqueue($message);
+                userLOG($item['chat_id'],'error','Retry stopped - '.$e->getMessage());
                 break;
-                // Stop retrying if the proxy is still down
+            }
+            $this->messageQueue->dequeue();
+            $delivered++;
+            if ($alert !== null) {
+                if ($alert['mode'] === 'problem' && $messageId > 0) {
+                    $this->alerts()->put((string)$alert['event_id'], (string)$alert['chat_id'], $messageId);
+                } elseif ($alert['mode'] === 'recovery') {
+                    $this->alerts()->delete((string)$alert['event_id'], (string)$alert['chat_id']);
+                }
             }
         }
+        return $delivered;
     }
 
     public function getMessageQueueSize() {

@@ -7,6 +7,7 @@ namespace ZabbixBot\Services;
  * - проблема: надсилає і запам'ятовує message_id (AlertStore);
  * - оновлення проблеми (коментар/квитування): відповідь на сповіщення про проблему, запис лишається;
  * - відновлення: відповідь на сповіщення про проблему + запис видаляється; якщо запису немає - звичайне надсилання.
+ * Якщо Telegram недоступний, сповіщення йде в чергу повторів разом з міткою alert - запис оновиться після доставки.
  *
  * Транспорт і перевірка користувача передаються closure-ами, тому клас тестується без мережі.
  */
@@ -60,17 +61,24 @@ class AlertService
         if ($eventId !== '' && $mode !== 'problem') {
             $replyTo = $this->store->get($eventId, $chatId);
             if ($replyTo !== null) {
-                $options['reply_parameters'] = ['message_id' => $replyTo, 'allow_sending_without_reply' => true];
+                // Telegram очікує JSON-рядок, SDK не серіалізує вкладені масиви (крім reply_markup)
+                $options['reply_parameters'] = json_encode(['message_id' => $replyTo, 'allow_sending_without_reply' => true]);
             }
+        }
+        if ($eventId !== '') {
+            $options['alert'] = ['event_id' => $eventId, 'chat_id' => $chatId, 'mode' => $mode];
         }
 
         $messageId = ($this->send)($chatId, $text, $options);
 
         if ($eventId !== '') {
-            if ($mode === 'problem' && $messageId !== null) {
-                $this->store->put($eventId, $chatId, $messageId);
-            } elseif ($mode === 'recovery') {
-                $this->store->delete($eventId, $chatId);
+            // messageId === null: повідомлення в черзі повторів, запис оновить MessageService::retryMessages() після доставки
+            if ($messageId !== null) {
+                if ($mode === 'problem') {
+                    $this->store->put($eventId, $chatId, $messageId);
+                } elseif ($mode === 'recovery') {
+                    $this->store->delete($eventId, $chatId);
+                }
             }
         }
         $this->store->purgeExpired();

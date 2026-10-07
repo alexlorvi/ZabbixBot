@@ -42,16 +42,14 @@ class RetryMessagesCommand extends Command
 
         $limit = $input->getOption('limit');
 
-        $retriedMessages = 0;
-        $queueSize = $this->messageService->getMessageQueueSize();
+        $delivered = $this->messageService->retryMessages((int)$limit);
+        $left = $this->messageService->getMessageQueueSize();
 
-        while ($queueSize > 0 && $retriedMessages < $limit) {
-            $this->messageService->retryMessages();
-            $retriedMessages++;
-            $queueSize = $this->messageService->getMessageQueueSize();
+        if ($left > 0 && $delivered < (int)$limit) {
+            $io->warning("$delivered delivered, $left still queued (Telegram unreachable or retry stopped; see logs).");
+        } else {
+            $io->success("$delivered messages delivered, $left left in queue.");
         }
-
-        $io->success("$retriedMessages messages retried successfully.");
         return Command::SUCCESS;
     }
 }
