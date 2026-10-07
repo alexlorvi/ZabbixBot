@@ -70,6 +70,15 @@ class MessageService {
         }
     }
 
+    /** Видаляє повідомлення (кнопка "Закрити" в панелях). */
+    public function deleteMessage($chatId, $messageId): void {
+        try {
+            $this->telegram->deleteMessage(['chat_id' => $chatId, 'message_id' => $messageId]);
+        } catch (\Exception $e) {
+            userLOG($chatId,'error','Delete Error - '.$e->getMessage());
+        }
+    }
+
     /** Склеює блоки (напр. одна подія = один блок) у повідомлення до LIMIT символів замість одного повідомлення на блок. */
     public function sendBlocks($chatId, array $blocks, string $sep = "\n", $options = []) {
         foreach (self::packBlocks($blocks, $sep) as $text) {

@@ -17,6 +17,8 @@ final class SettingsCommandRenderTest extends TestCase
             'menu_style_inline' => 'Inline',
             'menu_style_reply' => 'Reply keyboard',
             'severity_levels' => ['Not classified', 'Information', 'Warning', 'Average', 'High', 'Disaster'],
+            'media_names' => ['tg' => 'Telegram', 'email' => 'Email'],
+            'media_missing' => 'not configured',
             'back' => 'Back',
             'close' => 'Close',
             'languageNames' => ['en' => 'English', 'ua' => 'Українська'],
@@ -25,14 +27,14 @@ final class SettingsCommandRenderTest extends TestCase
 
     public function testTextReflectsCurrentState(): void
     {
-        [$text] = SettingsCommand::renderFromState($this->i18n(), 'ua', 'reply', 0);
+        [$text] = SettingsCommand::renderFromState($this->i18n(), 'ua', 'reply', []);
         $this->assertStringContainsString('Language: Українська', $text);
         $this->assertStringContainsString('Menu style: Reply keyboard', $text);
     }
 
     public function testLanguageRowMarksCurrentLanguage(): void
     {
-        [, $keyboard] = SettingsCommand::renderFromState($this->i18n(), 'ua', 'inline', 0);
+        [, $keyboard] = SettingsCommand::renderFromState($this->i18n(), 'ua', 'inline', []);
         $rows = $keyboard->toArray()['inline_keyboard'];
         $langRow = $rows[0];
         $this->assertStringContainsString("\u{2705}", $langRow[1]['text']); // 'ua' is the 2nd language in the fixture
@@ -41,39 +43,48 @@ final class SettingsCommandRenderTest extends TestCase
         $this->assertSame('set:lang:ua', $langRow[1]['callback_data']);
     }
 
-    public function testSeverityCheckboxesReflectBitmask(): void
-    {
-        // Average(8) + Disaster(32) = 40 => bits 3 and 5 checked
-        [, $keyboard] = SettingsCommand::renderFromState($this->i18n(), 'en', 'inline', 40);
-        $rows = $keyboard->toArray()['inline_keyboard'];
-        // rows[0] = languages, rows[1..3] = severity pairs (bits 0-1, 2-3, 4-5), rows[4] = menu style, rows[5] = back/close
-        $this->assertStringContainsString("\u{2B1C}", $rows[1][0]['text']); // bit 0 Not classified - off
-        $this->assertStringContainsString("\u{2B1C}", $rows[1][1]['text']); // bit 1 Information - off
-        $this->assertStringContainsString("\u{2B1C}", $rows[2][0]['text']); // bit 2 Warning - off
-        $this->assertStringContainsString("\u{2705}", $rows[2][1]['text']); // bit 3 Average - ON
-        $this->assertStringContainsString("\u{2B1C}", $rows[3][0]['text']); // bit 4 High - off
-        $this->assertStringContainsString("\u{2705}", $rows[3][1]['text']); // bit 5 Disaster - ON
-        $this->assertSame('set:sev:3', $rows[2][1]['callback_data']);
-        $this->assertSame('set:sev:5', $rows[3][1]['callback_data']);
-    }
-
     public function testMenuStyleRowMarksCurrentStyle(): void
     {
-        [, $keyboard] = SettingsCommand::renderFromState($this->i18n(), 'en', 'reply', 0);
-        $rows = $keyboard->toArray()['inline_keyboard'];
-        $menuRow = $rows[4];
-        $this->assertStringNotContainsString("\u{2705}", $menuRow[0]['text']); // inline - not selected
-        $this->assertStringContainsString("\u{2705}", $menuRow[1]['text']);   // reply - selected
-        $this->assertSame('set:menu:inline', $menuRow[0]['callback_data']);
+        [, $keyboard] = SettingsCommand::renderFromState($this->i18n(), 'en', 'reply', ['tg']);
+        $menuRow = $keyboard->toArray()['inline_keyboard'][1];
+        $this->assertStringNotContainsString("\u{2705}", $menuRow[0]['text']);
+        $this->assertStringContainsString("\u{2705}", $menuRow[1]['text']);
         $this->assertSame('set:menu:reply', $menuRow[1]['callback_data']);
     }
 
-    public function testBackAndCloseButtonsPresent(): void
+    public function testMainHasMediaButtonsAndCloseButNoBack(): void
     {
-        [, $keyboard] = SettingsCommand::renderFromState($this->i18n(), 'en', 'inline', 0);
+        [, $keyboard] = SettingsCommand::renderFromState($this->i18n(), 'en', 'inline', ['tg', 'email']);
         $rows = $keyboard->toArray()['inline_keyboard'];
+        $this->assertSame('set:media:tg', $rows[2][0]['callback_data']);
+        $this->assertSame('set:media:email', $rows[2][1]['callback_data']);
         $lastRow = $rows[array_key_last($rows)];
-        $this->assertSame('set:back', $lastRow[0]['callback_data']);
-        $this->assertSame('set:close', $lastRow[1]['callback_data']);
+        $this->assertCount(1, $lastRow);
+        $this->assertSame('set:close', $lastRow[0]['callback_data']);
+        foreach ($rows as $row) {
+            foreach ($row as $btn) {
+                $this->assertNotSame('set:back', $btn['callback_data']);
+            }
+        }
+    }
+
+    public function testMediaSubmenuSeverityCheckboxesAndBack(): void
+    {
+        // Average(8) + Disaster(32) = 40 => bits 3 and 5 checked
+        [, $keyboard] = SettingsCommand::renderMediaFromState($this->i18n(), 'email', 40);
+        $rows = $keyboard->toArray()['inline_keyboard'];
+        $this->assertStringContainsString("\u{2B1C}", $rows[0][0]['text']);
+        $this->assertStringContainsString("\u{2705}", $rows[1][1]['text']);
+        $this->assertStringContainsString("\u{2705}", $rows[2][1]['text']);
+        $this->assertSame('set:sev:email:3', $rows[1][1]['callback_data']);
+        $this->assertSame('set:main', $rows[3][0]['callback_data']);
+    }
+
+    public function testMediaSubmenuWithoutMediaShowsOnlyBack(): void
+    {
+        [$text, $keyboard] = SettingsCommand::renderMediaFromState($this->i18n(), 'tg', null);
+        $rows = $keyboard->toArray()['inline_keyboard'];
+        $this->assertCount(1, $rows);
+        $this->assertStringContainsString('not configured', $text);
     }
 }

@@ -125,18 +125,39 @@ class ZabbixService {
     }
 
     /**
-     * Виставляє однакову severity-маску на кожен налаштований метод сповіщення користувача.
-     * Зберігає інші поля media (sendto/active/period) без змін.
+     * ID типів сповіщень (mediatype) для "виду" каналу: 'tg' - Telegram-медіа бота (zabbix.mediatype_id),
+     * 'email' - усі Zabbix mediatype з type=0 (Email).
+     * @return list<string>
      */
-    public function updateUserMediaSeverity(string $userId, int $severityMask): bool {
-        $medias = $this->getUserMediasFull($userId);
-        if (!$medias) {
-            return false;
+    public function mediaTypeIdsForKind(string $kind): array {
+        if ($kind === 'tg') {
+            return [(string)ConfigService::getInstance()->getNested('zabbix.mediatype_id', '16')];
         }
+        if ($kind === 'email') {
+            $types = $this->request('mediatype.get', ['output' => ['mediatypeid'], 'filter' => ['type' => 0]]);
+            return is_array($types) ? array_map('strval', array_column($types, 'mediatypeid')) : [];
+        }
+        return [];
+    }
+
+    /**
+     * Виставляє severity-маску на налаштовані методи сповіщення користувача (усі, або лише з переліку mediatype).
+     * Зберігає інші поля media (sendto/active/period) без змін.
+     * @param list<string>|null $mediaTypeIds обмеження за mediatypeid; null = усі media
+     */
+    public function updateUserMediaSeverity(string $userId, int $severityMask, ?array $mediaTypeIds = null): bool {
+        $medias = $this->getUserMediasFull($userId);
+        $changed = false;
         foreach ($medias as &$media) {
-            $media['severity'] = (string)$severityMask;
+            if ($mediaTypeIds === null || in_array((string)$media['mediatypeid'], $mediaTypeIds, true)) {
+                $media['severity'] = (string)$severityMask;
+                $changed = true;
+            }
         }
         unset($media);
+        if (!$changed) {
+            return false;
+        }
         $result = $this->request('user.update', [
             'userid' => $userId,
             'medias' => $medias,
