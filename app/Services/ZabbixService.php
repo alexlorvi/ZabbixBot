@@ -426,6 +426,24 @@ class ZabbixService {
         return is_array($res) && isset($res[0]) ? $res[0] : null;
     }
 
+    /** Медіатип за id (сервісний ключ). @return array<string,mixed>|null */
+    public function findMediaTypeById(string $id): ?array {
+        $res = $this->request('mediatype.get', ['output' => ['mediatypeid', 'name', 'type'], 'mediatypeids' => $id]);
+        return is_array($res) && isset($res[0]) ? $res[0] : null;
+    }
+
+    /** @return bool false - помилка (див. lastError()) */
+    public function updateMediaType(string $id, array $fields): bool {
+        $res = $this->request('mediatype.update', ['mediatypeid' => $id] + $fields);
+        return is_array($res) && isset($res['mediatypeids']);
+    }
+
+    /** Кількість користувачів з media цього типу. */
+    public function countMediaTypeUsers(string $id): ?int {
+        $res = $this->request('user.get', ['output' => ['userid'], 'mediatypeids' => $id]);
+        return is_array($res) ? count($res) : null;
+    }
+
     /** @return string|null id створеного медіатипу; null - помилка (див. lastError()) */
     public function createMediaType(array $fields): ?string {
         $res = $this->request('mediatype.create', $fields);

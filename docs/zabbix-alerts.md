@@ -56,19 +56,29 @@ Cron для черги: `* * * * * php /path/console.php app:retry-messages --li
 
 ```
 php console.php app:mediatype install --lang=ua --dry-run          # що буде зроблено (нічого не змінює)
-php console.php app:mediatype install --lang=ua                    # створити НОВИЙ медіатип "ZabbixBot"
-php console.php app:mediatype install --lang=en --name="ZabbixBot EN"
+php console.php app:mediatype install --lang=ua                    # створити НОВИЙ медіатип "ZabbixBot", друкує mediatype-id
+php console.php app:mediatype install --lang=ua --mediatype-id=16  # ЗАМІНИТИ вміст наявного медіатипу #16
+ID=$(php console.php app:mediatype install --lang=ua -n -q | sed 's/^mediatype-id: //')   # id у змінну
 php console.php app:mediatype export --lang=ua -o mediatype.yaml   # YAML з реальними url/token для імпорту вручну
 php console.php app:mediatype export --lang=ua --placeholders      # YAML із заглушками (як у docs/)
 ```
 
 - `--lang=ua|en` — **обов'язковий**: мова шаблонів повідомлень і кнопок «Квитувати»/«Коментар» (передається в
   alert.php параметром медіатипу `lang`). Іншого визначення мови для сповіщень немає.
-- `install` лише **створює новий** медіатип для подальшого ручного доналаштування в Zabbix (шаблони, параметри,
-  користувачі, дії). Наявні медіатипи не змінюються: якщо медіатип з такою назвою вже є — помилка, задайте `--name`.
+- `install` без `--mediatype-id` **створює новий** медіатип (для подальшого ручного доналаштування) і друкує його id
+  рядком `mediatype-id: N` (навіть з `-q`). Якщо медіатип з такою назвою вже є — помилка: задайте іншу `--name`
+  або замініть його через `--mediatype-id`.
+- `install --mediatype-id=N` **замінює** вміст наявного webhook-медіатипу N: скрипт, параметри, шаблони, опис.
+  Назва лишається, якщо не передано `--name`. Media користувачів і дії (Actions), що посилаються на N, не
+  змінюються — тобто всі, хто має цей медіатип, одразу почнуть отримувати сповіщення через alert.php
+  (`Send to` у них має бути Telegram chat id). Перед заміною показується кількість таких користувачів і
+  питається підтвердження (`-n` — без питання). Не-webhook медіатип замінити не можна.
+- `export` **не звертається до Zabbix**: друкує (або пише в `-o` файл) YAML у форматі *Alerts → Media types → Export*,
+  щоб імпортувати вручну (*Import*). З реальними url/token з конфіга (файл отримує права 0600 — там секрет) або
+  з `--placeholders` — заглушки, як у `docs/zbx_export_mediatypes.yaml`.
 - `url` — `alerts.url` з конфіга (або `--url`); якщо не задано — з `telegram.webhook_url` (`.../index.php` → `.../alert.php`).
 - `token` — `alerts.token`; без нього `install` відмовиться (alert.php вимкнений).
-- `install` потребує, щоб сервісний `zabbix.apikey` мав право створювати медіатипи (Super admin).
+- `install` потребує, щоб сервісний `zabbix.apikey` мав право створювати/змінювати медіатипи (Super admin).
 - Бот впізнає своїх користувачів за медіатипом `zabbix.mediatype_id`: якщо користувачі переходять на новий
   медіатип, змініть цей параметр у конфізі.
 

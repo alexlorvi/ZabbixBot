@@ -13,8 +13,10 @@ use ZabbixBot\Services\MediaTypeDefinition;
 use ZabbixBot\Services\ZabbixService;
 
 /**
- * Webhook-медіатип Zabbix для alert.php: export - YAML для імпорту в Zabbix, install - створити НОВИЙ медіатип через
- * API для подальшого ручного доналаштування (наявні медіатипи не змінюються). Мова шаблонів - лише з --lang.
+ * Webhook-медіатип Zabbix для alert.php. Мова шаблонів і кнопок - лише з --lang.
+ * - export: YAML (zabbix_export) для ручного імпорту в Zabbix; Zabbix не чіпає;
+ * - install: створює новий медіатип і повертає його id (друкується навіть з -q);
+ *   install --mediatype-id=N: замінює вміст наявного медіатипу N (скрипт, параметри, шаблони, опис).
  * Визначення - MediaTypeDefinition, скрипт - docs/zabbix-mediatype.js.
  */
 class MediaTypeCommand extends Command
@@ -35,7 +37,8 @@ class MediaTypeCommand extends Command
             ->addArgument('action', InputArgument::REQUIRED, 'export|install')
             ->addOption('url', null, InputOption::VALUE_REQUIRED, 'alert.php URL (default: alerts.url, else derived from telegram.webhook_url)')
             ->addOption('lang', null, InputOption::VALUE_REQUIRED, 'Required. Language of the message templates and ack buttons: '.implode('|', MediaTypeDefinition::languages()))
-            ->addOption('name', null, InputOption::VALUE_REQUIRED, 'Media type name (must not exist yet)', MediaTypeDefinition::DEFAULT_NAME)
+            ->addOption('name', null, InputOption::VALUE_REQUIRED, 'Media type name (new: must not exist yet; with --mediatype-id: rename, otherwise the name is kept)', MediaTypeDefinition::DEFAULT_NAME)
+            ->addOption('mediatype-id', null, InputOption::VALUE_REQUIRED, 'install: replace this existing webhook media type instead of creating a new one')
             ->addOption('proxy', null, InputOption::VALUE_REQUIRED, 'HTTP proxy Zabbix should use to reach alert.php', '')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'install: show what would be done, change nothing')
             ->addOption('output', 'o', InputOption::VALUE_REQUIRED, 'export: write to file instead of stdout')
@@ -127,37 +130,80 @@ class MediaTypeCommand extends Command
         }
 
         $name = (string)$input->getOption('name');
-        $existing = $this->zbx->findMediaTypeByName($name);
-        if ($existing !== null) {
-            $io->error("Media type '$name' already exists (#{$existing['mediatypeid']}). It is not changed - pass another --name to create a new one.");
-            return Command::FAILURE;
+        $replaceId = $input->getOption('mediatype-id');
+        if ($replaceId !== null) {
+            $target = $this->zbx->findMediaTypeById((string)$replaceId);
+            if ($target === null) {
+                $io->error("Media type #$replaceId not found".($this->zbx->lastError() ? ': '.$this->zbx->lastError() : '.'));
+                return Command::FAILURE;
+            }
+            if ((string)$target['type'] !== '4') {
+                $io->error("Media type #$replaceId '{$target['name']}' is not a webhook - refusing to replace it.");
+                return Command::FAILURE;
+            }
+            $rename = $input->hasParameterOption('--name');
+            if (!$rename) {
+                $name = (string)$target['name'];
+            }
+            $users = $this->zbx->countMediaTypeUsers((string)$replaceId);
+            $action = "replace #$replaceId '{$target['name']}'".($rename ? " (rename to '$name')" : '');
+        } else {
+            $existing = $this->zbx->findMediaTypeByName($name);
+            if ($existing !== null) {
+                $io->error("Media type '$name' already exists (#{$existing['mediatypeid']}). Pass another --name, or --mediatype-id={$existing['mediatypeid']} to replace it.");
+                return Command::FAILURE;
+            }
+            $action = "create '$name'";
         }
 
         $def = new MediaTypeDefinition($url, $token, $lang, $name, (string)$input->getOption('proxy'));
         $io->definitionList(
-            ['Action' => "create '$name'"],
+            ['Action' => $action],
             ['alert.php' => $url],
             ['Language' => $lang],
         );
+        if ($replaceId !== null) {
+            $io->note(sprintf('%s user(s) have media #%s: their notifications will go through alert.php (Send to must be the Telegram chat id).', $users ?? '?', $replaceId));
+        }
         if ($dryRun) {
             $io->success('Dry run: nothing changed.');
             return Command::SUCCESS;
         }
 
-        $mediaTypeId = $this->zbx->createMediaType($def->apiFields());
-        if ($mediaTypeId === null) {
-            $io->error('mediatype.create failed: '.$this->zbx->lastError());
-            return Command::FAILURE;
+        if ($replaceId !== null) {
+            if ($input->isInteractive() && !$io->confirm("Replace media type #$replaceId?", false)) {
+                $io->warning('Cancelled.');
+                return Command::FAILURE;
+            }
+            if (!$this->zbx->updateMediaType((string)$replaceId, $def->apiFields())) {
+                $io->error('mediatype.update failed: '.$this->zbx->lastError());
+                return Command::FAILURE;
+            }
+            $mediaTypeId = (string)$replaceId;
+            mainLOG('main', 'info', "app:mediatype install: replaced media type #$mediaTypeId '$name' -> $url ($lang)");
+            $io->success("Media type #$mediaTypeId '$name' replaced.");
+        } else {
+            $mediaTypeId = $this->zbx->createMediaType($def->apiFields());
+            if ($mediaTypeId === null) {
+                $io->error('mediatype.create failed: '.$this->zbx->lastError());
+                return Command::FAILURE;
+            }
+            mainLOG('main', 'info', "app:mediatype install: created media type #$mediaTypeId '$name' -> $url ($lang)");
+            $io->success("Media type #$mediaTypeId '$name' created.");
+            $io->text([
+                'Next, in Zabbix (Alerts -> Media types):',
+                ' - review/adjust the message templates and parameters;',
+                ' - add this media type to users (Send to = Telegram chat id);',
+                ' - use it in Actions: problem, recovery and update operations.',
+            ]);
         }
-        mainLOG('main', 'info', "app:mediatype install: created media type #$mediaTypeId '$name' -> $url ($lang)");
-        $io->success("Media type #$mediaTypeId '$name' created.");
-        $io->text([
-            'Next, in Zabbix (Alerts -> Media types):',
-            ' - review/adjust the message templates and parameters;',
-            ' - add this media type to users (Send to = Telegram chat id);',
-            ' - use it in Actions: problem, recovery and update operations.',
-            'The bot recognises its users by zabbix.mediatype_id ('.ConfigService::getInstance()->getNested('zabbix.mediatype_id', '16').') - change it in config.php if users will move to this media type.',
-        ]);
+
+        $configured = (string)ConfigService::getInstance()->getNested('zabbix.mediatype_id', '16');
+        if ($configured !== $mediaTypeId) {
+            $io->text("The bot recognises its users by zabbix.mediatype_id ($configured) - set it to '$mediaTypeId' in config.php if users move to this media type.");
+        }
+        // id окремим рядком і навіть з -q: ID=$(php console.php app:mediatype install --lang=ua -n -q)
+        $io->writeln('mediatype-id: '.$mediaTypeId, OutputInterface::VERBOSITY_QUIET);
         return Command::SUCCESS;
     }
 }

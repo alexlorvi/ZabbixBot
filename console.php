@@ -49,5 +49,6 @@ $application->run();
 /// php console.php app:send-message <chatId> "<message>"
 /// php console.php app:top200-sync
 /// php console.php app:webhook set|info|del
-/// php console.php app:mediatype export|install [--dry-run] [--mediatype-id=16]
+/// php console.php app:mediatype install --lang=ua|en [--mediatype-id=N] [--dry-run]   # створити (або замінити N), друкує mediatype-id
+/// php console.php app:mediatype export --lang=ua|en [-o file] [--placeholders]       # лише YAML для імпорту, Zabbix не чіпає
 ///
