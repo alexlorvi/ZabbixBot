@@ -49,6 +49,9 @@ return [
         // Назва групи користувачів у Zabbix, чиї учасники вважаються адмінами бота (/reset).
         // Джерело правди - Zabbix, окремого списку chat id в конфізі немає.
         'admin_group' => 'Zabbix Administrators',
+        // ID медіатипу Telegram у Zabbix: за ним бот знаходить своїх користувачів (Send to = chat id) і на нього
+        // ставить severity в /settings. Медіатип для alert.php ставиться `php console.php app:mediatype install`.
+        'mediatype_id' => '16',
         // Термін дії персонального Zabbix API-токена користувача (дні). 0 - без терміну.
         'user_token_ttl_days' => 90,
         // Base64 від 32 байт (sodium secretbox) для шифрування tokens/<chat_id>.key.
@@ -66,6 +69,8 @@ return [
     'alerts' => [
         // Спільний секрет (заголовок X-Alert-Token). Порожній - alert.php вимкнений (503).
         'token' => '',
+        // Повний URL alert.php для медіатипу (app:mediatype). Порожньо - виводиться з telegram.webhook_url.
+        //'url' => 'https://bot.example.com/alert.php',
         // Скільки днів пам'ятати message_id проблеми, яка так і не відновилась
         'ttl_days' => 30,
         // Слати лише користувачам, відомим у Zabbix (за медіа Telegram)

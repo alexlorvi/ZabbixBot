@@ -16,3 +16,10 @@ if (!function_exists('userLOG')) {
 if (!function_exists('mainLOG')) {
     function mainLOG($channel, $level, $message): void {}
 }
+if (!function_exists('unichr')) {
+    function unichr($i) { return iconv('UCS-4LE', 'UTF-8', pack('V', $i)); }
+}
+if (!function_exists('emoji')) {
+    // messages*.php беруть емодзі з конфіга - у тестах вони не важливі
+    function emoji(string $name, $default = ''): string { return ''; }
+}

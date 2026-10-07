@@ -420,6 +420,41 @@ class ZabbixService {
         return array_slice($problems, 0, $limit);
     }
 
+    /** Медіатип за id або назвою (сервісний ключ). @return array<string,mixed>|null */
+    public function findMediaType(?string $id, ?string $name): ?array {
+        $params = ['output' => ['mediatypeid', 'name', 'type', 'status']];
+        if ($id !== null) {
+            $params['mediatypeids'] = $id;
+        } else {
+            $params['filter'] = ['name' => $name];
+        }
+        $res = $this->request('mediatype.get', $params);
+        return is_array($res) && isset($res[0]) ? $res[0] : null;
+    }
+
+    /** @return string|null id створеного медіатипу; null - помилка (див. lastError()) */
+    public function createMediaType(array $fields): ?string {
+        $res = $this->request('mediatype.create', $fields);
+        return is_array($res) && isset($res['mediatypeids'][0]) ? (string)$res['mediatypeids'][0] : null;
+    }
+
+    /** @return bool false - помилка (див. lastError()) */
+    public function updateMediaType(string $id, array $fields): bool {
+        $res = $this->request('mediatype.update', ['mediatypeid' => $id] + $fields);
+        return is_array($res) && isset($res['mediatypeids']);
+    }
+
+    /** Кількість користувачів з media цього типу. */
+    public function countMediaTypeUsers(string $id): ?int {
+        $res = $this->request('user.get', ['output' => ['userid'], 'mediatypeids' => $id]);
+        return is_array($res) ? count($res) : null;
+    }
+
+    /** Текст помилки останнього невдалого виклику API. */
+    public function lastError(): ?string {
+        return $this->lastError;
+    }
+
     /** event.acknowledge: прапорці action (можна поєднувати через |). */
     public const ACK_CLOSE = 1;
     public const ACK_ACKNOWLEDGE = 2;

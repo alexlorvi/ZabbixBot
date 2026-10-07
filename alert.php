@@ -11,6 +11,7 @@ require_once __DIR__.'/tools/helpers.php';
 
 use ZabbixBot\Models\User;
 use ZabbixBot\Services\AckService;
+use ZabbixBot\Services\AlertFormatter;
 use ZabbixBot\Services\AlertService;
 use ZabbixBot\Services\AlertStore;
 use ZabbixBot\Services\ConfigService;
@@ -44,6 +45,13 @@ if (!is_array($payload)) {
     $payload = $_POST;
 }
 
+/** Тексти мовою отримувача (його налаштування /settings, інакше telegram.lang). */
+function langFor(string $chatId): LangService {
+    $lang = LangService::getInstance();
+    $lang->setLang((new User($chatId))->get('lang') ?? ConfigService::getInstance()->getNested('telegram.lang'));
+    return $lang;
+}
+
 $zabbix = new ZabbixService();
 $messenger = new MessageService(TelegramFactory::make((array)$cfg->getNested('telegram')));
 $service = new AlertService(
@@ -54,11 +62,18 @@ $service = new AlertService(
     // Кнопки "Квитувати"/"Коментар" під проблемою, мовою користувача (його налаштування /settings)
     (bool)$cfg->getNested('alerts.ack_buttons', true)
         ? function (string $chatId, string $eventId): string {
-            $lang = LangService::getInstance();
-            $lang->setLang((new User($chatId))->get('lang') ?? ConfigService::getInstance()->getNested('telegram.lang'));
+            $lang = langFor($chatId);
             return AckService::keyboard($eventId, ['ack' => $lang->getNested('ack.button'), 'comment' => $lang->getNested('ack.commentButton')]);
         }
         : null,
+    // Текст сповіщення формує бот мовою отримувача з полів медіатипу (app:mediatype); без них - subject/message Zabbix
+    function (string $chatId, array $payload, string $mode): ?string {
+        $lang = langFor($chatId);
+        return AlertFormatter::render($payload, $mode, (array)$lang->getNested('alert', []) + [
+            'severity' => (array)$lang->getNested('user.severity', []),
+            'units' => (array)$lang->getNested('main.durUnits', ['d' => 'd', 'h' => 'h', 'm' => 'm']),
+        ]);
+    },
 );
 
 $result = $service->handle($payload);

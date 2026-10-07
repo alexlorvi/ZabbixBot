@@ -1,0 +1,212 @@
+zabbix_export:
+  version: '7.4'
+  media_types:
+    - name: 'ZabbixBot'
+      type: 'WEBHOOK'
+      parameters:
+        - name: 'ack_status'
+          value: '{EVENT.ACK.STATUS}'
+        - name: 'event_date'
+          value: '{EVENT.DATE}'
+        - name: 'event_duration'
+          value: '{EVENT.DURATION}'
+        - name: 'event_id'
+          value: '{EVENT.ID}'
+        - name: 'event_name'
+          value: '{EVENT.NAME}'
+        - name: 'event_opdata'
+          value: '{EVENT.OPDATA}'
+        - name: 'event_severity'
+          value: '{EVENT.NSEVERITY}'
+        - name: 'event_source'
+          value: '{EVENT.SOURCE}'
+        - name: 'event_status'
+          value: '{EVENT.STATUS}'
+        - name: 'event_tags'
+          value: '{EVENT.TAGS}'
+        - name: 'event_time'
+          value: '{EVENT.TIME}'
+        - name: 'event_update_status'
+          value: '{EVENT.UPDATE.STATUS}'
+        - name: 'event_value'
+          value: '{EVENT.VALUE}'
+        - name: 'host_ip'
+          value: '{HOST.IP}'
+        - name: 'host_name'
+          value: '{HOST.NAME}'
+        - name: 'http_proxy'
+          value: ''
+        - name: 'inventory_tag'
+          value: '{INVENTORY.TAG}'
+        - name: 'message'
+          value: '{ALERT.MESSAGE}'
+        - name: 'parse_mode'
+          value: 'html'
+        - name: 'recovery_date'
+          value: '{EVENT.RECOVERY.DATE}'
+        - name: 'recovery_time'
+          value: '{EVENT.RECOVERY.TIME}'
+        - name: 'sendto'
+          value: '{ALERT.SENDTO}'
+        - name: 'subject'
+          value: '{ALERT.SUBJECT}'
+        - name: 'token'
+          value: '<alerts.token>'
+        - name: 'trigger_description'
+          value: '{TRIGGER.DESCRIPTION}'
+        - name: 'trigger_url'
+          value: '{TRIGGER.URL}'
+        - name: 'update_action'
+          value: '{EVENT.UPDATE.ACTION}'
+        - name: 'update_date'
+          value: '{EVENT.UPDATE.DATE}'
+        - name: 'update_message'
+          value: '{EVENT.UPDATE.MESSAGE}'
+        - name: 'update_time'
+          value: '{EVENT.UPDATE.TIME}'
+        - name: 'update_user'
+          value: '{USER.FULLNAME}'
+        - name: 'uptime'
+          value: '{?last(/{HOST.HOST}/sys.uptime[sysUpTime.0])}'
+        - name: 'url'
+          value: 'https://<bot-host>/alert.php'
+      script: |
+        // Скрипт webhook-медіатипу Zabbix: передає сповіщення в alert.php бота.
+        // Медіатип цілком (параметри, шаблони) генерує `php console.php app:mediatype export|install`,
+        // цей файл - джерело його скрипта (MediaTypeDefinition).
+        //
+        // Службові параметри: url (https://<host>/alert.php), token (alerts.token), http_proxy (необов'язково).
+        // Решта параметрів пересилаються в alert.php як є: sendto/subject/message/event_* тощо. Бот формує текст сам,
+        // мовою отримувача; subject/message (шаблони медіатипу) - запасний варіант.
+        // Макрос, який у цьому контексті не розкрився (напр. {EVENT.RECOVERY.DATE} у проблемі) або *UNKNOWN*,
+        // передається порожнім рядком.
+        var SERVICE = ['url', 'token', 'http_proxy'];
+
+        function escapeMarkup(str, mode) {
+            switch (mode) {
+                case 'markdown':
+                    return str.replace(/([_*\[`])/g, '\\$&');
+                case 'markdownv2':
+                    return str.replace(/([_*\[\]()~`>#+\-=|{}.!])/g, '\\$&');
+                case 'html':
+                    // теги шаблону лишаються, "<" з даних (напр. "a < b" у назві) - ні
+                    return str.replace(/<(\s|[^a-z\/])/g, '&lt;$1');
+                default:
+                    return str;
+            }
+        }
+
+        try {
+            var params = JSON.parse(value),
+                body = {},
+                req = new HttpRequest(),
+                resp;
+
+            Object.keys(params).forEach(function (key) {
+                if (SERVICE.indexOf(key) !== -1) {
+                    return;
+                }
+                var v = params[key];
+                if (typeof v === 'string' && (v === '*UNKNOWN*' || /^\{(\?[\s\S]*|[A-Z][A-Z0-9_.]*)\}$/.test(v))) {
+                    v = '';
+                }
+                body[key] = v;
+            });
+
+            var mode = (body.parse_mode || '').toLowerCase();
+            if (['markdown', 'markdownv2', 'html'].indexOf(mode) !== -1) {
+                body.subject = escapeMarkup(body.subject || '', mode);
+                body.message = escapeMarkup(body.message || '', mode);
+            }
+
+            if (params.http_proxy) {
+                req.setProxy(params.http_proxy);
+            }
+            req.addHeader('Content-Type: application/json');
+            req.addHeader('X-Alert-Token: ' + params.token);
+            resp = req.post(params.url, JSON.stringify(body));
+
+            if (req.getStatus() !== 200) {
+                throw 'HTTP ' + req.getStatus() + ': ' + resp;
+            }
+            return 'OK: ' + resp;
+        } catch (error) {
+            Zabbix.log(3, '[ZabbixBot alert] ' + error);
+            throw 'Sending failed: ' + error;
+        }
+      timeout: '10s'
+      process_tags: 'YES'
+      description: |
+        ZabbixBot: сповіщення в Telegram через бота (alert.php) / notifications to Telegram via the bot.
+
+        UA: Send to (у media користувача) = його Telegram chat id. Текст сповіщень про тригери бот формує сам мовою користувача
+        (/settings), з кнопками "Квитувати"/"Коментар"; відновлення приходить відповіддю на проблему.
+        Шаблони нижче - запасний варіант (discovery, autoregistration). Параметри url/token - з config.php бота
+        (alerts.url, alerts.token). Встановлення/оновлення: php console.php app:mediatype install
+
+        EN: Send to (in the user's media) = Telegram chat id. Trigger notifications are rendered by the bot in the user's
+        language (/settings) with "Acknowledge"/"Comment" buttons; recovery is sent as a reply to the problem.
+        The templates below are a fallback (discovery, autoregistration). url/token come from the bot's config.php
+        (alerts.url, alerts.token). Install/update: php console.php app:mediatype install
+      message_templates:
+        - event_source: 'TRIGGERS'
+          operation_mode: 'PROBLEM'
+          subject: '⛔ Виявлено проблему {EVENT.DATE} о {EVENT.TIME}'
+          message: |
+            <b>Хост:</b> <i>{HOST.NAME} ({HOST.IP1})</i>
+            <b>Назва проблеми:</b> <i>{EVENT.NAME}</i>
+            <b>Рейтинг АЗК:</b> <i>{INVENTORY.TAG}</i>
+            <b>Супутні теги:</b> <i>{EVENT.TAGS}</i>
+            <b>Рівень обслуговування:</b> <i>{EVENT.SEVERITY}</i>
+
+            <b>Операційні дані:</b> <i>{EVENT.OPDATA}</i>
+
+            <b>Опис проблеми:</b>
+            {TRIGGER.DESCRIPTION}
+
+            {TRIGGER.URL}
+            /ev{EVENT.ID}
+        - event_source: 'TRIGGERS'
+          operation_mode: 'RECOVERY'
+          subject: '✅ Проблему усунуто {EVENT.RECOVERY.DATE} о {EVENT.RECOVERY.TIME}'
+          message: |
+            <b>Хост:</b> <i>{HOST.NAME} ({HOST.IP1})</i>
+            <b>Назва проблеми:</b> <i>{EVENT.RECOVERY.NAME}</i>
+            <b>Рейтинг АЗК:</b> <i>{INVENTORY.TAG}</i>
+            <b>Супутні теги:</b> <i>{EVENT.RECOVERY.TAGS}</i>
+            <b>Рівень обслуговування:</b> <i>{EVENT.SEVERITY}</i>
+
+            <b>Тривалість проблеми:</b> <i>{EVENT.DURATION}</i>
+            {TRIGGER.URL}
+            /ev{EVENT.ID}
+        - event_source: 'TRIGGERS'
+          operation_mode: 'UPDATE'
+          subject: '💬 Оновлення проблеми: {EVENT.NAME}'
+          message: |
+            {USER.FULLNAME} {EVENT.UPDATE.ACTION} {EVENT.UPDATE.DATE} {EVENT.UPDATE.TIME}
+            {EVENT.UPDATE.MESSAGE}
+
+            Статус: {EVENT.STATUS}, квитовано: {EVENT.ACK.STATUS}
+            /ev{EVENT.ID}
+        - event_source: 'DISCOVERY'
+          operation_mode: 'PROBLEM'
+          subject: 'Виявлення: {DISCOVERY.DEVICE.STATUS} {DISCOVERY.DEVICE.IPADDRESS}'
+          message: |
+            Правило виявлення: {DISCOVERY.RULE.NAME}
+
+            IP пристрою: {DISCOVERY.DEVICE.IPADDRESS}
+            DNS пристрою: {DISCOVERY.DEVICE.DNS}
+            Стан пристрою: {DISCOVERY.DEVICE.STATUS}
+            Аптайм пристрою: {DISCOVERY.DEVICE.UPTIME}
+
+            Сервіс: {DISCOVERY.SERVICE.NAME}
+            Порт сервісу: {DISCOVERY.SERVICE.PORT}
+            Стан сервісу: {DISCOVERY.SERVICE.STATUS}
+            Аптайм сервісу: {DISCOVERY.SERVICE.UPTIME}
+        - event_source: 'AUTOREGISTRATION'
+          operation_mode: 'PROBLEM'
+          subject: 'Автореєстрація: {HOST.HOST}'
+          message: |
+            Ім'я хоста: {HOST.HOST}
+            IP хоста: {HOST.IP}
+            Порт агента: {HOST.PORT}

@@ -5,6 +5,7 @@ require_once __DIR__.'/vendor/autoload.php';
 require_once __DIR__.'/tools/helpers.php';
 
 use Symfony\Component\Console\Application;
+use ZabbixBot\Commands\CLI\MediaTypeCommand;
 use ZabbixBot\Commands\CLI\RetryMessagesCommand;
 use ZabbixBot\Commands\CLI\SendMessagesCommand;
 use ZabbixBot\Commands\CLI\Top200SyncCommand;
@@ -36,6 +37,7 @@ $application->add(new RetryMessagesCommand($messageService));
 $application->add(new SendMessagesCommand($messageService));
 $application->add(new Top200SyncCommand(new ZabbixService()));
 $application->add(new WebhookCommand());
+$application->add(new MediaTypeCommand(new ZabbixService()));
 
 // Run the application
 $application->run();
@@ -47,4 +49,5 @@ $application->run();
 /// php console.php app:send-message <chatId> "<message>"
 /// php console.php app:top200-sync
 /// php console.php app:webhook set|info|del
+/// php console.php app:mediatype export|install [--dry-run] [--mediatype-id=16]
 ///

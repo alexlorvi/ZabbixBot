@@ -49,23 +49,43 @@ Cron для черги: `* * * * * php /path/console.php app:retry-messages --li
 
 ## Налаштування Zabbix
 
-*Alerts → Media types → Create media type*: Type = **Webhook**, Script = вміст
-[`zabbix-mediatype.js`](zabbix-mediatype.js), параметри (Name → Value):
+### Медіатип
 
-| Name | Value |
-|---|---|
-| `url` | `https://<host>/alert.php` |
-| `token` | значення `alerts.token` |
-| `sendto` | `{ALERT.SENDTO}` |
-| `subject` | `{ALERT.SUBJECT}` |
-| `message` | `{ALERT.MESSAGE}` |
-| `event_id` | `{EVENT.ID}` |
-| `event_value` | `{EVENT.VALUE}` |
-| `event_update_status` | `{EVENT.UPDATE.STATUS}` |
-| `parse_mode` | *(порожньо, `html`, `markdown`, `markdownv2`)* |
+Медіатип (webhook) генерує бот — вручну нічого збирати не треба. Визначення: `MediaTypeDefinition`,
+скрипт: [`zabbix-mediatype.js`](zabbix-mediatype.js), готовий файл для імпорту з заглушками:
+[`zbx_export_mediatypes.yaml`](zbx_export_mediatypes.yaml).
+
+```
+php console.php app:mediatype install --dry-run                    # що буде зроблено (нічого не змінює)
+php console.php app:mediatype install                              # створити/оновити медіатип "ZabbixBot"
+php console.php app:mediatype install --mediatype-id=16            # перевести наявний медіатип Telegram на alert.php
+php console.php app:mediatype export -o mediatype.yaml             # YAML з реальними url/token для імпорту вручну
+php console.php app:mediatype export --placeholders                # YAML із заглушками (як у docs/)
+```
+
+- `url` — `alerts.url` з конфіга (або `--url`); якщо не задано — з `telegram.webhook_url` (`.../index.php` → `.../alert.php`).
+- `token` — `alerts.token`; без нього `install` відмовиться (alert.php вимкнений).
+- `--lang=ua|en` — мова **запасних** шаблонів Zabbix (за замовчуванням `telegram.lang`), див. нижче.
+- `install` потребує, щоб сервісний `zabbix.apikey` мав право керувати медіатипами (Super admin).
+- Перед оновленням наявного медіатипу команда показує, скільки користувачів його мають, і питає підтвердження (`-y` — без питання).
+
+**Двомовність.** Медіатип передає в alert.php не лише `{ALERT.SUBJECT}`/`{ALERT.MESSAGE}`, а й поля події (назва,
+критичність, хост/IP, теги, opdata, опис, URL, дати проблеми/відновлення, тривалість, дані оновлення, аптайм
+`{?last(/{HOST.HOST}/sys.uptime[sysUpTime.0])}`). Для тригерів бот збирає текст сам — **мовою отримувача**
+(`/settings`, інакше `telegram.lang`), за шаблонами `alert.*` у `config/messages*.php`; рядки з порожніми полями
+пропускаються. Шаблони повідомлень медіатипу — запасний варіант: discovery/autoregistration і випадок, коли поля
+не прийшли. Макроси, що в контексті не розкрились (напр. `{EVENT.RECOVERY.DATE}` у проблемі) або `*UNKNOWN*`,
+скрипт передає порожніми.
+
+**Перехід зі старого медіатипу Telegram.** Бот впізнає користувачів за медіатипом `zabbix.mediatype_id` (16):
+`Send to` у них — Telegram chat id. Найпростіше — `install --mediatype-id=16`: той самий медіатип починає слати через
+alert.php, media користувачів не змінюються. Інакше (новий медіатип) — додайте його користувачам і змініть
+`zabbix.mediatype_id` у конфізі.
+
+### Дія (Action)
 
 У користувача Zabbix у *Media* — цей медіатип, **Send to** = Telegram chat id. Дію (Action) налаштуйте з операціями
-для проблеми та **recovery operations** (і за потреби update operations) на цей медіатип.
+для проблеми, **recovery operations** і **update operations** (для повідомлень про квитування) на цей медіатип.
 
 ## Формат запиту
 
@@ -79,6 +99,7 @@ Cron для черги: `* * * * * php /path/console.php app:retry-messages --li
 | `event_value` | `1` проблема (за замовчуванням), `0` відновлення |
 | `event_update_status` | `1` — оновлення проблеми |
 | `parse_mode` | `html` / `markdown` / `markdownv2`, інше ігнорується |
+| `event_source`, `event_name`, `event_severity`, … | поля події для тексту мовою отримувача (повний перелік — `MediaTypeDefinition::PARAMETERS`); без них — `subject`/`message` |
 
 Відповідь: `200 {"ok":true,"message_id":123,"mode":"recovery+reply"}`; помилки: `400` (поля), `401` (токен),
 `403` (отримувач не користувач Zabbix), `405`, `503` (alerts.token не задано).
