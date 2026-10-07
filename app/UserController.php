@@ -185,7 +185,7 @@ class UserController {
             foreach($userEvents as $event) {
                 if (isset($event['eventid'])) {
                     $eventInfo = $this->zabbixService->getEventInfo($event['eventid']);
-                    userLOG($this->userID,'debug',print_r($eventInfo));
+                    userLOG($this->userID,'debug',print_r($eventInfo, true));
                     $responce[] = [
                         'eventid' => $event['eventid'],
                         'name' => $event['name'],
