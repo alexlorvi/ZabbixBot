@@ -204,7 +204,7 @@ class UserController {
             $reply .= sprintf($format,
                       date('d/m/Y H:i:s',$acknowledge['clock']),
                       $acknowledge['message'],
-                      $acknowledge['username'] ?? $acknowledge['userid'] ?? '');
+                      $acknowledge['author'] ?? $acknowledge['username'] ?? $acknowledge['userid'] ?? '');
         }
         return $reply;
     }

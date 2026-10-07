@@ -269,7 +269,42 @@ class ZabbixService {
                 $map[(string)$event['eventid']] = $event;
             }
         }
+        $this->resolveAckAuthors($map);
         return $map;
+    }
+
+    /** Додає acknowledges[].author ("Ім'я Прізвище", інакше username) одним user.get на всі квитування. */
+    private function resolveAckAuthors(array &$events): void {
+        $ids = [];
+        foreach ($events as $event) {
+            foreach ((array)($event['acknowledges'] ?? []) as $ack) {
+                if (isset($ack['userid'])) {
+                    $ids[(string)$ack['userid']] = true;
+                }
+            }
+        }
+        if (!$ids) {
+            return;
+        }
+        $users = $this->request('user.get', [
+            'output' => ['userid','username','name','surname'],
+            'userids' => array_keys($ids),
+        ]);
+        $names = [];
+        foreach ((array)$users as $u) {
+            $full = trim(($u['name'] ?? '').' '.($u['surname'] ?? ''));
+            $names[(string)$u['userid']] = $full !== '' ? $full : (string)($u['username'] ?? '');
+        }
+        foreach ($events as &$event) {
+            if (empty($event['acknowledges']) || !is_array($event['acknowledges'])) {
+                continue;
+            }
+            foreach ($event['acknowledges'] as &$ack) {
+                $ack['author'] = $names[(string)($ack['userid'] ?? '')] ?? (string)($ack['username'] ?? $ack['userid'] ?? '');
+            }
+            unset($ack);
+        }
+        unset($event);
     }
 
     public function getEventInfo($eventID){
