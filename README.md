@@ -39,7 +39,7 @@ Telegram-бот для моніторингу Zabbix: авторизовані �
 
 ### Сповіщення з Zabbix (`alert.php`)
 
-Бот приймає сповіщення з Zabbix (webhook-медіатип) і шле їх у Telegram. Повідомлення про відновлення (та оновлення) приходить **відповіддю** на повідомлення про проблему: `message_id` проблеми зберігається у файлі `alerts/<eventId>_<chatId>.json` і видаляється після відновлення. Якщо проблему бот не бачив — просто звичайне повідомлення. Текст сповіщення бот формує **мовою користувача** (його `/settings`). Медіатип Zabbix ставиться командою `php console.php app:mediatype install` (або імпортом [docs/zbx_export_mediatypes.yaml](docs/zbx_export_mediatypes.yaml)) — деталі в [docs/zabbix-alerts.md](docs/zabbix-alerts.md).
+Бот приймає сповіщення з Zabbix (webhook-медіатип) і шле їх у Telegram. Повідомлення про відновлення (та оновлення) приходить **відповіддю** на повідомлення про проблему: `message_id` проблеми зберігається у файлі `alerts/<eventId>_<chatId>.json` і видаляється після відновлення. Якщо проблему бот не бачив — просто звичайне повідомлення. Новий медіатип Zabbix створюється командою `php console.php app:mediatype install --lang=ua|en` (мова шаблонів і кнопок; наявні медіатипи не змінюються) або імпортом [docs/zbx_export_mediatypes.yaml](docs/zbx_export_mediatypes.yaml) — деталі в [docs/zabbix-alerts.md](docs/zabbix-alerts.md).
 
 ### Квитування і коментарі з Telegram
 
@@ -57,7 +57,7 @@ php console.php app:retry-messages --limit=5     # повторно відпра
 php console.php app:send-message <chatId> "text" # разова відправка довільного повідомлення
 php console.php app:top200-sync                  # синхронізувати групу TOP200 з WogRouters (для cron)
 php console.php app:webhook set|info|del         # керування Telegram-вебхуком, див. розділ нижче
-php console.php app:mediatype install|export     # медіатип Zabbix для alert.php (див. docs/zabbix-alerts.md)
+php console.php app:mediatype install|export --lang=ua|en  # новий медіатип Zabbix для alert.php (див. docs/zabbix-alerts.md)
 ```
 
 ## Вимоги

@@ -28,7 +28,8 @@ final class MediaTypeDefinitionTest extends TestCase
         $this->assertSame('https://x/alert.php', $params['url']);
         $this->assertSame('secret', $params['token']);
         $this->assertSame('{ALERT.SENDTO}', $params['sendto']);
-        $this->assertSame('{EVENT.NSEVERITY}', $params['event_severity']);
+        $this->assertSame('en', $params['lang'], 'button language = --lang');
+        $this->assertSame('{EVENT.ID}', $params['event_id']);
         $names = array_keys($params);
         $sorted = $names;
         sort($sorted);
@@ -42,7 +43,6 @@ final class MediaTypeDefinitionTest extends TestCase
         $this->assertSame(MediaTypeDefinition::DEFAULT_NAME, $f['name']);
         $this->assertCount(5, $f['message_templates']);
         $this->assertStringContainsString('X-Alert-Token', $f['script']);
-        $this->assertArrayNotHasKey('name', $this->def()->apiFields(false), 'update keeps the existing name');
         $this->assertStringContainsString('Виявлено проблему', $f['message_templates'][0]['subject']);
         $this->assertStringContainsString('Problem detected', $this->def('en')->apiFields()['message_templates'][0]['subject']);
     }

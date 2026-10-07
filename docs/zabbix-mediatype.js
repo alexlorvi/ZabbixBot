@@ -3,10 +3,8 @@
 // цей файл - джерело його скрипта (MediaTypeDefinition).
 //
 // Службові параметри: url (https://<host>/alert.php), token (alerts.token), http_proxy (необов'язково).
-// Решта параметрів пересилаються в alert.php як є: sendto/subject/message/event_* тощо. Бот формує текст сам,
-// мовою отримувача; subject/message (шаблони медіатипу) - запасний варіант.
-// Макрос, який у цьому контексті не розкрився (напр. {EVENT.RECOVERY.DATE} у проблемі) або *UNKNOWN*,
-// передається порожнім рядком.
+// Решта пересилаються в alert.php як є: sendto, subject, message, parse_mode, event_id, event_value,
+// event_update_status, lang (мова кнопок квитування).
 var SERVICE = ['url', 'token', 'http_proxy'];
 
 function escapeMarkup(str, mode) {
@@ -33,11 +31,7 @@ try {
         if (SERVICE.indexOf(key) !== -1) {
             return;
         }
-        var v = params[key];
-        if (typeof v === 'string' && (v === '*UNKNOWN*' || /^\{(\?[\s\S]*|[A-Z][A-Z0-9_.]*)\}$/.test(v))) {
-            v = '';
-        }
-        body[key] = v;
+        body[key] = params[key];
     });
 
     var mode = (body.parse_mode || '').toLowerCase();

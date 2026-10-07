@@ -16,10 +16,9 @@ class AlertService
     /**
      * @param callable(string,string,array):?int $send ($chatId, $text, $options) => message_id|null
      * @param callable(string):bool $isKnownUser чи відомий chat id як користувач Zabbix
-     * @param (callable(string,string):?string)|null $keyboard ($chatId, $eventId) => reply_markup (JSON) для
-     *        сповіщення про проблему (кнопки квитування, AckService::keyboard()), null - без кнопок
-     * @param (callable(string,array,string):?string)|null $render ($chatId, $payload, $mode) => HTML-текст мовою
-     *        отримувача (AlertFormatter) або null - тоді subject/message, як їх сформував Zabbix
+     * @param (callable(string,string,string):?string)|null $keyboard ($chatId, $eventId, $lang) => reply_markup (JSON)
+     *        для сповіщення про проблему (кнопки квитування, AckService::keyboard()), null - без кнопок;
+     *        $lang - параметр медіатипу lang (мова, обрана при app:mediatype install), може бути порожнім
      */
     public function __construct(
         private readonly AlertStore $store,
@@ -27,7 +26,6 @@ class AlertService
         private $isKnownUser,
         private readonly bool $requireKnownUser = true,
         private $keyboard = null,
-        private $render = null,
     ) {
     }
 
@@ -42,29 +40,25 @@ class AlertService
         if (!preg_match('/^-?[0-9]+$/', $chatId)) {
             return ['ok' => false, 'status' => 400, 'error' => 'sendto must be a numeric chat id'];
         }
+        $subject = trim((string)($p['subject'] ?? ''));
+        $body = trim((string)($p['message'] ?? ''));
+        $text = $subject !== '' && $body !== '' ? $subject."\n".$body : $subject.$body;
+        if ($text === '') {
+            return ['ok' => false, 'status' => 400, 'error' => 'empty subject and message'];
+        }
+        if ($this->requireKnownUser && !($this->isKnownUser)($chatId)) {
+            return ['ok' => false, 'status' => 403, 'error' => 'unknown recipient'];
+        }
+
         $eventId = preg_replace('/[^0-9]/', '', (string)($p['event_id'] ?? ''));
         $isRecovery = (string)($p['event_value'] ?? '1') === '0';
         $isUpdate = (string)($p['event_update_status'] ?? '0') === '1';
         $mode = $isUpdate ? 'update' : ($isRecovery ? 'recovery' : 'problem');
 
         $options = ['keep_keyboard' => true];
-        $text = $this->render !== null ? ($this->render)($chatId, $p, $mode) : null;
-        if ($text !== null && $text !== '') {
-            $options['parse_mode'] = 'html';
-        } else {
-            $subject = trim((string)($p['subject'] ?? ''));
-            $body = trim((string)($p['message'] ?? ''));
-            $text = $subject !== '' && $body !== '' ? $subject."\n".$body : $subject.$body;
-            $parseMode = strtolower((string)($p['parse_mode'] ?? ''));
-            if (in_array($parseMode, ['html', 'markdown', 'markdownv2'], true)) {
-                $options['parse_mode'] = $parseMode;
-            }
-        }
-        if ($text === '') {
-            return ['ok' => false, 'status' => 400, 'error' => 'empty subject and message'];
-        }
-        if ($this->requireKnownUser && !($this->isKnownUser)($chatId)) {
-            return ['ok' => false, 'status' => 403, 'error' => 'unknown recipient'];
+        $parseMode = strtolower((string)($p['parse_mode'] ?? ''));
+        if (in_array($parseMode, ['html', 'markdown', 'markdownv2'], true)) {
+            $options['parse_mode'] = $parseMode;
         }
 
         $replyTo = null;
@@ -78,7 +72,7 @@ class AlertService
         if ($eventId !== '') {
             $options['alert'] = ['event_id' => $eventId, 'chat_id' => $chatId, 'mode' => $mode];
             if ($mode === 'problem' && $this->keyboard !== null) {
-                $markup = ($this->keyboard)($chatId, $eventId);
+                $markup = ($this->keyboard)($chatId, $eventId, preg_replace('/[^a-z]/', '', strtolower((string)($p['lang'] ?? ''))));
                 if ($markup !== null) {
                     $options['reply_markup'] = $markup;
                 }

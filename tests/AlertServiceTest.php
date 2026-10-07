@@ -27,7 +27,7 @@ final class AlertServiceTest extends TestCase
         @rmdir($this->dir);
     }
 
-    private function service(bool $known = true, bool $require = true, ?callable $keyboard = null, ?callable $render = null): AlertService
+    private function service(bool $known = true, bool $require = true, ?callable $keyboard = null): AlertService
     {
         return new AlertService(
             new AlertStore($this->dir),
@@ -38,7 +38,6 @@ final class AlertServiceTest extends TestCase
             fn(string $chat): bool => $known,
             $require,
             $keyboard,
-            $render,
         );
     }
 
@@ -135,11 +134,11 @@ final class AlertServiceTest extends TestCase
 
     public function testAckKeyboardOnlyOnProblem(): void
     {
-        $svc = $this->service(keyboard: fn(string $chat, string $event): string => "kb:$chat:$event");
-        $svc->handle($this->payload());
+        $svc = $this->service(keyboard: fn(string $chat, string $event, string $lang): string => "kb:$chat:$event:$lang");
+        $svc->handle($this->payload(['lang' => 'EN<x>']));
         $svc->handle($this->payload(['event_update_status' => '1']));
         $svc->handle($this->payload(['event_value' => '0']));
-        $this->assertSame('kb:42:900', $this->sent[0][2]['reply_markup']);
+        $this->assertSame('kb:42:900:enx', $this->sent[0][2]['reply_markup'], 'lang from the media type, sanitized');
         $this->assertArrayNotHasKey('reply_markup', $this->sent[1][2]);
         $this->assertArrayNotHasKey('reply_markup', $this->sent[2][2]);
     }
@@ -160,33 +159,6 @@ final class AlertServiceTest extends TestCase
         foreach ([500, 501, 502] as $id) {
             $this->assertSame('900', $store->eventForMessage('42', $id));
         }
-    }
-
-    public function testRenderedTextReplacesZabbixTemplatesAndIsHtml(): void
-    {
-        $seen = [];
-        $svc = $this->service(render: function (string $chat, array $p, string $mode) use (&$seen): ?string {
-            $seen[] = [$chat, $mode];
-            return "<b>$mode</b> ".$p['event_id'];
-        });
-        $svc->handle($this->payload(['parse_mode' => 'markdown']));
-        $svc->handle($this->payload(['event_value' => '0']));
-        $this->assertSame('<b>problem</b> 900', $this->sent[0][1]);
-        $this->assertSame('html', $this->sent[0][2]['parse_mode']);
-        $this->assertSame([['42', 'problem'], ['42', 'recovery']], $seen);
-    }
-
-    public function testRenderNullFallsBackToSubjectAndMessage(): void
-    {
-        $this->service(render: fn() => null)->handle($this->payload(['parse_mode' => 'markdown']));
-        $this->assertSame("Problem: Door\nHost H", $this->sent[0][1]);
-        $this->assertSame('markdown', $this->sent[0][2]['parse_mode']);
-    }
-
-    public function testRenderedTextAllowsEmptySubject(): void
-    {
-        $r = $this->service(render: fn() => 'text')->handle($this->payload(['subject' => '', 'message' => '']));
-        $this->assertTrue($r['ok']);
     }
 
     public function testParseModeWhitelist(): void

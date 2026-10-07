@@ -4,70 +4,26 @@ zabbix_export:
     - name: 'ZabbixBot'
       type: 'WEBHOOK'
       parameters:
-        - name: 'ack_status'
-          value: '{EVENT.ACK.STATUS}'
-        - name: 'event_date'
-          value: '{EVENT.DATE}'
-        - name: 'event_duration'
-          value: '{EVENT.DURATION}'
         - name: 'event_id'
           value: '{EVENT.ID}'
-        - name: 'event_name'
-          value: '{EVENT.NAME}'
-        - name: 'event_opdata'
-          value: '{EVENT.OPDATA}'
-        - name: 'event_severity'
-          value: '{EVENT.NSEVERITY}'
-        - name: 'event_source'
-          value: '{EVENT.SOURCE}'
-        - name: 'event_status'
-          value: '{EVENT.STATUS}'
-        - name: 'event_tags'
-          value: '{EVENT.TAGS}'
-        - name: 'event_time'
-          value: '{EVENT.TIME}'
         - name: 'event_update_status'
           value: '{EVENT.UPDATE.STATUS}'
         - name: 'event_value'
           value: '{EVENT.VALUE}'
-        - name: 'host_ip'
-          value: '{HOST.IP}'
-        - name: 'host_name'
-          value: '{HOST.NAME}'
         - name: 'http_proxy'
           value: ''
-        - name: 'inventory_tag'
-          value: '{INVENTORY.TAG}'
+        - name: 'lang'
+          value: 'ua'
         - name: 'message'
           value: '{ALERT.MESSAGE}'
         - name: 'parse_mode'
           value: 'html'
-        - name: 'recovery_date'
-          value: '{EVENT.RECOVERY.DATE}'
-        - name: 'recovery_time'
-          value: '{EVENT.RECOVERY.TIME}'
         - name: 'sendto'
           value: '{ALERT.SENDTO}'
         - name: 'subject'
           value: '{ALERT.SUBJECT}'
         - name: 'token'
           value: '<alerts.token>'
-        - name: 'trigger_description'
-          value: '{TRIGGER.DESCRIPTION}'
-        - name: 'trigger_url'
-          value: '{TRIGGER.URL}'
-        - name: 'update_action'
-          value: '{EVENT.UPDATE.ACTION}'
-        - name: 'update_date'
-          value: '{EVENT.UPDATE.DATE}'
-        - name: 'update_message'
-          value: '{EVENT.UPDATE.MESSAGE}'
-        - name: 'update_time'
-          value: '{EVENT.UPDATE.TIME}'
-        - name: 'update_user'
-          value: '{USER.FULLNAME}'
-        - name: 'uptime'
-          value: '{?last(/{HOST.HOST}/sys.uptime[sysUpTime.0])}'
         - name: 'url'
           value: 'https://<bot-host>/alert.php'
       script: |
@@ -76,10 +32,8 @@ zabbix_export:
         // цей файл - джерело його скрипта (MediaTypeDefinition).
         //
         // Службові параметри: url (https://<host>/alert.php), token (alerts.token), http_proxy (необов'язково).
-        // Решта параметрів пересилаються в alert.php як є: sendto/subject/message/event_* тощо. Бот формує текст сам,
-        // мовою отримувача; subject/message (шаблони медіатипу) - запасний варіант.
-        // Макрос, який у цьому контексті не розкрився (напр. {EVENT.RECOVERY.DATE} у проблемі) або *UNKNOWN*,
-        // передається порожнім рядком.
+        // Решта пересилаються в alert.php як є: sendto, subject, message, parse_mode, event_id, event_value,
+        // event_update_status, lang (мова кнопок квитування).
         var SERVICE = ['url', 'token', 'http_proxy'];
 
         function escapeMarkup(str, mode) {
@@ -106,11 +60,7 @@ zabbix_export:
                 if (SERVICE.indexOf(key) !== -1) {
                     return;
                 }
-                var v = params[key];
-                if (typeof v === 'string' && (v === '*UNKNOWN*' || /^\{(\?[\s\S]*|[A-Z][A-Z0-9_.]*)\}$/.test(v))) {
-                    v = '';
-                }
-                body[key] = v;
+                body[key] = params[key];
             });
 
             var mode = (body.parse_mode || '').toLowerCase();
@@ -139,15 +89,13 @@ zabbix_export:
       description: |
         ZabbixBot: сповіщення в Telegram через бота (alert.php) / notifications to Telegram via the bot.
 
-        UA: Send to (у media користувача) = його Telegram chat id. Текст сповіщень про тригери бот формує сам мовою користувача
-        (/settings), з кнопками "Квитувати"/"Коментар"; відновлення приходить відповіддю на проблему.
-        Шаблони нижче - запасний варіант (discovery, autoregistration). Параметри url/token - з config.php бота
-        (alerts.url, alerts.token). Встановлення/оновлення: php console.php app:mediatype install
+        UA: Send to (у media користувача) = його Telegram chat id. Відновлення й оновлення приходять відповіддю на проблему,
+        під проблемою - кнопки "Квитувати"/"Коментар". url/token - з config.php бота (alerts.url, alerts.token),
+        lang - мова кнопок. Створено: php console.php app:mediatype install --lang=ua|en
 
-        EN: Send to (in the user's media) = Telegram chat id. Trigger notifications are rendered by the bot in the user's
-        language (/settings) with "Acknowledge"/"Comment" buttons; recovery is sent as a reply to the problem.
-        The templates below are a fallback (discovery, autoregistration). url/token come from the bot's config.php
-        (alerts.url, alerts.token). Install/update: php console.php app:mediatype install
+        EN: Send to (in the user's media) = Telegram chat id. Recovery and updates are sent as replies to the problem,
+        the problem has "Acknowledge"/"Comment" buttons. url/token come from the bot's config.php (alerts.url,
+        alerts.token), lang is the buttons' language. Created by: php console.php app:mediatype install --lang=ua|en
       message_templates:
         - event_source: 'TRIGGERS'
           operation_mode: 'PROBLEM'
@@ -178,6 +126,8 @@ zabbix_export:
 
             <b>Тривалість проблеми:</b> <i>{EVENT.DURATION}</i>
             {TRIGGER.URL}
+
+            Аптайм пристрою - /{?last(/{HOST.HOST}/sys.uptime[sysUpTime.0])}sec
             /ev{EVENT.ID}
         - event_source: 'TRIGGERS'
           operation_mode: 'UPDATE'

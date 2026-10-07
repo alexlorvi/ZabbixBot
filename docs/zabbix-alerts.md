@@ -22,7 +22,7 @@
   сповіщення цієї події для цього користувача, нові сповіщення цієї події теж стають у чергу, щоб відновлення не
   обігнало проблему. Назавжди відхилені Telegram повідомлення (HTTP 400/403, напр. бот заблокований) відкидаються.
 - Reply-клавіатуру користувача сповіщення не знімають.
-- Під сповіщенням про проблему — кнопки «✅ Квитувати» / «💬 Коментар» (`alerts.ack_buttons`), мовою користувача.
+- Під сповіщенням про проблему — кнопки «✅ Квитувати» / «💬 Коментар» (`alerts.ack_buttons`), мовою медіатипу (`lang`).
   Кожне сповіщення (проблема/оновлення/відновлення) також записується в зворотний індекс
   `alerts/msg_<chatId>_<messageId>.json` → event_id, тож відповідь (reply) текстом на будь-яке з них стає коментарем
   у Zabbix. Індекс не видаляється при відновленні (коментувати можна й закриту проблему), лише через `ttl_days`.
@@ -51,36 +51,26 @@ Cron для черги: `* * * * * php /path/console.php app:retry-messages --li
 
 ### Медіатип
 
-Медіатип (webhook) генерує бот — вручну нічого збирати не треба. Визначення: `MediaTypeDefinition`,
-скрипт: [`zabbix-mediatype.js`](zabbix-mediatype.js), готовий файл для імпорту з заглушками:
-[`zbx_export_mediatypes.yaml`](zbx_export_mediatypes.yaml).
+Медіатип (webhook) генерує бот. Визначення: `MediaTypeDefinition`, скрипт: [`zabbix-mediatype.js`](zabbix-mediatype.js),
+готовий файл для імпорту з заглушками: [`zbx_export_mediatypes.yaml`](zbx_export_mediatypes.yaml) (`--lang=ua`).
 
 ```
-php console.php app:mediatype install --dry-run                    # що буде зроблено (нічого не змінює)
-php console.php app:mediatype install                              # створити/оновити медіатип "ZabbixBot"
-php console.php app:mediatype install --mediatype-id=16            # перевести наявний медіатип Telegram на alert.php
-php console.php app:mediatype export -o mediatype.yaml             # YAML з реальними url/token для імпорту вручну
-php console.php app:mediatype export --placeholders                # YAML із заглушками (як у docs/)
+php console.php app:mediatype install --lang=ua --dry-run          # що буде зроблено (нічого не змінює)
+php console.php app:mediatype install --lang=ua                    # створити НОВИЙ медіатип "ZabbixBot"
+php console.php app:mediatype install --lang=en --name="ZabbixBot EN"
+php console.php app:mediatype export --lang=ua -o mediatype.yaml   # YAML з реальними url/token для імпорту вручну
+php console.php app:mediatype export --lang=ua --placeholders      # YAML із заглушками (як у docs/)
 ```
 
+- `--lang=ua|en` — **обов'язковий**: мова шаблонів повідомлень і кнопок «Квитувати»/«Коментар» (передається в
+  alert.php параметром медіатипу `lang`). Іншого визначення мови для сповіщень немає.
+- `install` лише **створює новий** медіатип для подальшого ручного доналаштування в Zabbix (шаблони, параметри,
+  користувачі, дії). Наявні медіатипи не змінюються: якщо медіатип з такою назвою вже є — помилка, задайте `--name`.
 - `url` — `alerts.url` з конфіга (або `--url`); якщо не задано — з `telegram.webhook_url` (`.../index.php` → `.../alert.php`).
 - `token` — `alerts.token`; без нього `install` відмовиться (alert.php вимкнений).
-- `--lang=ua|en` — мова **запасних** шаблонів Zabbix (за замовчуванням `telegram.lang`), див. нижче.
-- `install` потребує, щоб сервісний `zabbix.apikey` мав право керувати медіатипами (Super admin).
-- Перед оновленням наявного медіатипу команда показує, скільки користувачів його мають, і питає підтвердження (`-y` — без питання).
-
-**Двомовність.** Медіатип передає в alert.php не лише `{ALERT.SUBJECT}`/`{ALERT.MESSAGE}`, а й поля події (назва,
-критичність, хост/IP, теги, opdata, опис, URL, дати проблеми/відновлення, тривалість, дані оновлення, аптайм
-`{?last(/{HOST.HOST}/sys.uptime[sysUpTime.0])}`). Для тригерів бот збирає текст сам — **мовою отримувача**
-(`/settings`, інакше `telegram.lang`), за шаблонами `alert.*` у `config/messages*.php`; рядки з порожніми полями
-пропускаються. Шаблони повідомлень медіатипу — запасний варіант: discovery/autoregistration і випадок, коли поля
-не прийшли. Макроси, що в контексті не розкрились (напр. `{EVENT.RECOVERY.DATE}` у проблемі) або `*UNKNOWN*`,
-скрипт передає порожніми.
-
-**Перехід зі старого медіатипу Telegram.** Бот впізнає користувачів за медіатипом `zabbix.mediatype_id` (16):
-`Send to` у них — Telegram chat id. Найпростіше — `install --mediatype-id=16`: той самий медіатип починає слати через
-alert.php, media користувачів не змінюються. Інакше (новий медіатип) — додайте його користувачам і змініть
-`zabbix.mediatype_id` у конфізі.
+- `install` потребує, щоб сервісний `zabbix.apikey` мав право створювати медіатипи (Super admin).
+- Бот впізнає своїх користувачів за медіатипом `zabbix.mediatype_id`: якщо користувачі переходять на новий
+  медіатип, змініть цей параметр у конфізі.
 
 ### Дія (Action)
 
@@ -99,7 +89,7 @@ alert.php, media користувачів не змінюються. Інакш�
 | `event_value` | `1` проблема (за замовчуванням), `0` відновлення |
 | `event_update_status` | `1` — оновлення проблеми |
 | `parse_mode` | `html` / `markdown` / `markdownv2`, інше ігнорується |
-| `event_source`, `event_name`, `event_severity`, … | поля події для тексту мовою отримувача (повний перелік — `MediaTypeDefinition::PARAMETERS`); без них — `subject`/`message` |
+| `lang` | мова кнопок квитування (`ua`/`en`), за замовчуванням `telegram.lang` |
 
 Відповідь: `200 {"ok":true,"message_id":123,"mode":"recovery+reply"}`; помилки: `400` (поля), `401` (токен),
 `403` (отримувач не користувач Zabbix), `405`, `503` (alerts.token не задано).
