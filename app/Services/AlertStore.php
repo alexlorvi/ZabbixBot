@@ -6,6 +6,10 @@ namespace ZabbixBot\Services;
  * Відповідність "подія Zabbix + користувач" -> message_id надісланого сповіщення.
  * Один файл на пару: <dir>/<eventId>_<chatId>.json, всередині {"message_id":..,"sent_at":..}.
  * Потрібно, щоб сповіщення про відновлення йшло відповіддю на сповіщення про проблему.
+ *
+ * Зворотний індекс <dir>/msg_<chatId>_<messageId>.json -> {"event_id":..} - для квитування відповіддю на будь-яке
+ * сповіщення події (проблема/оновлення/відновлення). Не видаляється при відновленні (квитувати можна й закриту
+ * проблему), лише за ttl_days.
  */
 class AlertStore
 {
@@ -20,16 +24,28 @@ class AlertStore
         }
     }
 
+    /** Запам'ятати сповіщення про проблему (для відповіді відновленням) і проіндексувати його message_id. */
     public function put(string $eventId, string $chatId, int $messageId): bool
     {
-        $file = $this->path($eventId, $chatId);
-        $tmp = $file.'.'.getmypid().'.tmp';
-        $json = json_encode(['message_id' => $messageId, 'sent_at' => ($this->clock)()], JSON_THROW_ON_ERROR);
-        if (file_put_contents($tmp, $json, LOCK_EX) === false || !chmod($tmp, 0600) || !rename($tmp, $file)) {
-            @unlink($tmp);
+        $ok = $this->write($this->path($eventId, $chatId), ['message_id' => $messageId, 'sent_at' => ($this->clock)()]);
+        return $this->indexMessage($eventId, $chatId, $messageId) && $ok;
+    }
+
+    /** Лише зворотний індекс message_id -> подія (оновлення/відновлення, повідомлення /ev<id>). */
+    public function indexMessage(string $eventId, string $chatId, int $messageId): bool
+    {
+        if ($messageId <= 0 || preg_replace('/[^0-9]/', '', $eventId) === '') {
             return false;
         }
-        return true;
+        return $this->write($this->messagePath($chatId, $messageId), ['event_id' => $eventId, 'sent_at' => ($this->clock)()]);
+    }
+
+    /** Подія, до якої належить повідомлення бота в цьому чаті, або null. */
+    public function eventForMessage(string $chatId, int $messageId): ?string
+    {
+        $raw = @file_get_contents($this->messagePath($chatId, $messageId));
+        $rec = $raw === false ? null : json_decode($raw, true);
+        return is_array($rec) && isset($rec['event_id']) ? (string)$rec['event_id'] : null;
     }
 
     public function get(string $eventId, string $chatId): ?int
@@ -60,6 +76,22 @@ class AlertStore
             }
         }
         return $removed;
+    }
+
+    private function write(string $file, array $data): bool
+    {
+        $tmp = $file.'.'.getmypid().'.tmp';
+        $json = json_encode($data, JSON_THROW_ON_ERROR);
+        if (file_put_contents($tmp, $json, LOCK_EX) === false || !chmod($tmp, 0600) || !rename($tmp, $file)) {
+            @unlink($tmp);
+            return false;
+        }
+        return true;
+    }
+
+    private function messagePath(string $chatId, int $messageId): string
+    {
+        return $this->dir.'/msg_'.preg_replace('/[^0-9-]/', '', $chatId).'_'.$messageId.'.json';
     }
 
     private function path(string $eventId, string $chatId): string

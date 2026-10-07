@@ -16,12 +16,15 @@ class AlertService
     /**
      * @param callable(string,string,array):?int $send ($chatId, $text, $options) => message_id|null
      * @param callable(string):bool $isKnownUser чи відомий chat id як користувач Zabbix
+     * @param (callable(string,string):?string)|null $keyboard ($chatId, $eventId) => reply_markup (JSON) для
+     *        сповіщення про проблему (кнопки квитування, AckService::keyboard()), null - без кнопок
      */
     public function __construct(
         private readonly AlertStore $store,
         private $send,
         private $isKnownUser,
         private readonly bool $requireKnownUser = true,
+        private $keyboard = null,
     ) {
     }
 
@@ -67,6 +70,12 @@ class AlertService
         }
         if ($eventId !== '') {
             $options['alert'] = ['event_id' => $eventId, 'chat_id' => $chatId, 'mode' => $mode];
+            if ($mode === 'problem' && $this->keyboard !== null) {
+                $markup = ($this->keyboard)($chatId, $eventId);
+                if ($markup !== null) {
+                    $options['reply_markup'] = $markup;
+                }
+            }
         }
 
         $messageId = ($this->send)($chatId, $text, $options);
@@ -76,8 +85,11 @@ class AlertService
             if ($messageId !== null) {
                 if ($mode === 'problem') {
                     $this->store->put($eventId, $chatId, $messageId);
-                } elseif ($mode === 'recovery') {
-                    $this->store->delete($eventId, $chatId);
+                } else {
+                    $this->store->indexMessage($eventId, $chatId, $messageId);
+                    if ($mode === 'recovery') {
+                        $this->store->delete($eventId, $chatId);
+                    }
                 }
             }
         }

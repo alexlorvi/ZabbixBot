@@ -27,7 +27,7 @@ final class AlertServiceTest extends TestCase
         @rmdir($this->dir);
     }
 
-    private function service(bool $known = true, bool $require = true): AlertService
+    private function service(bool $known = true, bool $require = true, ?callable $keyboard = null): AlertService
     {
         return new AlertService(
             new AlertStore($this->dir),
@@ -37,6 +37,7 @@ final class AlertServiceTest extends TestCase
             },
             fn(string $chat): bool => $known,
             $require,
+            $keyboard,
         );
     }
 
@@ -129,6 +130,35 @@ final class AlertServiceTest extends TestCase
         $r = $this->service()->handle($this->payload(['event_id' => '']));
         $this->assertTrue($r['ok']);
         $this->assertSame([], glob($this->dir.'/*.json') ?: []);
+    }
+
+    public function testAckKeyboardOnlyOnProblem(): void
+    {
+        $svc = $this->service(keyboard: fn(string $chat, string $event): string => "kb:$chat:$event");
+        $svc->handle($this->payload());
+        $svc->handle($this->payload(['event_update_status' => '1']));
+        $svc->handle($this->payload(['event_value' => '0']));
+        $this->assertSame('kb:42:900', $this->sent[0][2]['reply_markup']);
+        $this->assertArrayNotHasKey('reply_markup', $this->sent[1][2]);
+        $this->assertArrayNotHasKey('reply_markup', $this->sent[2][2]);
+    }
+
+    public function testNoKeyboardWithoutEventId(): void
+    {
+        $this->service(keyboard: fn() => 'kb')->handle($this->payload(['event_id' => '']));
+        $this->assertArrayNotHasKey('reply_markup', $this->sent[0][2]);
+    }
+
+    public function testEveryAlertMessageIsIndexedForReplies(): void
+    {
+        $svc = $this->service();
+        $svc->handle($this->payload());                                 // 500
+        $svc->handle($this->payload(['event_update_status' => '1']));   // 501
+        $svc->handle($this->payload(['event_value' => '0']));           // 502
+        $store = new AlertStore($this->dir);
+        foreach ([500, 501, 502] as $id) {
+            $this->assertSame('900', $store->eventForMessage('42', $id));
+        }
     }
 
     public function testParseModeWhitelist(): void

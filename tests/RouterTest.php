@@ -35,6 +35,14 @@ final class RouterTest extends TestCase
         $this->assertSame('set', Router::classify('set:close')[0]);
     }
 
+    public function testAck(): void
+    {
+        $this->assertSame(['ack', '900'], Router::classifyCallback('ack:900'));
+        $this->assertSame(['ackmsg', '900'], Router::classifyCallback('ackmsg:900'));
+        $this->assertSame('ignored', Router::classifyCallback('ack:9x')[0]);
+        $this->assertSame('ignored', Router::classifyCallback('ackmsg:')[0]);
+    }
+
     public function testCallback(): void
     {
         $this->assertSame(['net', 'ping:10.0.0.1'], Router::classifyCallback('net:ping:10.0.0.1'));

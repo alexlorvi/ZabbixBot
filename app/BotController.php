@@ -98,7 +98,12 @@ class BotController {
          */
         if ($updates->isType('message')) {
             $message = $updates->getMessage();
-            $this->handleMessage($message->getChat()->getId(), $message->getText(), null);
+            // Відповідь (reply) на повідомлення бота - можливо, коментар до події Zabbix
+            $replyTo = $message->get('reply_to_message');
+            $reply = $replyTo !== null && ($replyTo->get('from')?->get('is_bot') ?? false)
+                ? ['message_id' => (int)$replyTo->get('message_id'), 'text' => (string)($replyTo->get('text') ?? $replyTo->get('caption') ?? ''), 'own_id' => (int)$message->get('message_id')]
+                : null;
+            $this->handleMessage($message->getChat()->getId(), (string)$message->getText(), null, $reply);
         } elseif ($updates->isType('callback_query')) {
             $callback = $updates->getCallbackQuery();
             $this->tgBot->answerCallbackQuery(['callback_query_id' => $callback->getId()]);
@@ -108,7 +113,11 @@ class BotController {
             mainLOG('main','debug',json_encode($updates->toArray(), JSON_UNESCAPED_UNICODE));
         };
     }
-    public function handleMessage($chatId, $text, $messageId = null) {
+    /**
+     * @param int|null $messageId повідомлення з натиснутою inline-кнопкою (callback_query), інакше null
+     * @param array{message_id:int,text:string,own_id:int}|null $reply на яке повідомлення бота це відповідь
+     */
+    public function handleMessage($chatId, $text, $messageId = null, ?array $reply = null) {
         $this->user->setUserID($chatId);
         userLOG($chatId,'info','> '.$text);
 
@@ -217,12 +226,25 @@ class BotController {
                     }
                     break;
 
-                case 'ignored':
-                    userLOG($chatId,'warning','Unhandled callback data: '.$text);
+                case 'ack':
+                    // Кнопка "Квитувати" під сповіщенням / /ev<id>
+                    $this->user->acknowledgeEvent($arg, $messageId);
+                    break;
+
+                case 'ackmsg':
+                    // Кнопка "Коментар": просимо відповісти текстом
+                    $this->user->promptComment($arg, $messageId);
                     break;
 
                 case 'text':
-                    //another text formats
+                    // Текстова відповідь на сповіщення/повідомлення про подію = коментар у Zabbix
+                    if ($reply !== null) {
+                        $this->user->commentFromReply($reply['message_id'], $reply['text'], (string)$text, $reply['own_id']);
+                    }
+                    break;
+
+                case 'ignored':
+                    userLOG($chatId,'warning','Unhandled callback data: '.$text);
                     break;
 
                 case 'command':

@@ -89,6 +89,7 @@ final class MessageServiceRetryTest extends TestCase
         $this->assertArrayNotHasKey('reply_parameters', $this->sent[0]);
         $this->assertSame(700, json_decode($this->sent[1]['reply_parameters'], true)['message_id'], 'reply resolved at delivery time');
         $this->assertNull((new AlertStore($this->dir))->get('900', '42'), 'recovery forgets the record');
+        $this->assertSame('900', (new AlertStore($this->dir))->eventForMessage('42', 701), 'queued recovery is indexed for replies after delivery');
     }
 
     public function testRetryStopsOnTemporaryFailureAndKeepsQueue(): void

@@ -110,6 +110,15 @@ class MessageService {
         }
     }
 
+    /** Міняє лише inline-клавіатуру надісланого повідомлення (напр. прибрати "Квитувати" після квитування). */
+    public function editMarkup($chatId, $messageId, $markup): void {
+        try {
+            $this->telegram->editMessageReplyMarkup(['chat_id' => $chatId, 'message_id' => $messageId, 'reply_markup' => $markup]);
+        } catch (\Exception $e) {
+            userLOG($chatId,'error','Edit markup Error - '.$e->getMessage());
+        }
+    }
+
     /** Видаляє повідомлення (кнопка "Закрити" в панелях). */
     public function deleteMessage($chatId, $messageId): void {
         try {
@@ -230,8 +239,11 @@ class MessageService {
             if ($alert !== null) {
                 if ($alert['mode'] === 'problem' && $messageId > 0) {
                     $this->alerts()->put((string)$alert['event_id'], (string)$alert['chat_id'], $messageId);
-                } elseif ($alert['mode'] === 'recovery') {
-                    $this->alerts()->delete((string)$alert['event_id'], (string)$alert['chat_id']);
+                } else {
+                    $this->alerts()->indexMessage((string)$alert['event_id'], (string)$alert['chat_id'], $messageId);
+                    if ($alert['mode'] === 'recovery') {
+                        $this->alerts()->delete((string)$alert['event_id'], (string)$alert['chat_id']);
+                    }
                 }
             }
         }

@@ -121,6 +121,15 @@ return [
         'durUnits' => ['d' => 'd', 'h' => 'h', 'm' => 'm'],
         'dateSec' => '%a days, %h hours, %i minutes %s seconds',
     ],
+    'ack' => [
+        'button' => "\u{2705} Acknowledge",
+        'commentButton' => "\u{1F4AC} Comment",
+        'done' => "\u{2705} Problem /ev%s acknowledged",
+        'commented' => "\u{1F4AC} Comment added to /ev%s",
+        'prompt' => "\u{1F4AC} Comment for /ev%s: send it as a reply to this message",
+        'placeholder' => "Comment for Zabbix",
+        'error' => "\u{26A0} Zabbix rejected it: %s",
+    ],
     'net' => [
         'bad_ip' => "%s does not look like an IP",
         'bad_ipv4' => "%s does not look like an IPv4",

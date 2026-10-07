@@ -9,9 +9,12 @@ require_once __DIR__.'/config/constants.php';
 require_once __DIR__.'/vendor/autoload.php';
 require_once __DIR__.'/tools/helpers.php';
 
+use ZabbixBot\Models\User;
+use ZabbixBot\Services\AckService;
 use ZabbixBot\Services\AlertService;
 use ZabbixBot\Services\AlertStore;
 use ZabbixBot\Services\ConfigService;
+use ZabbixBot\Services\LangService;
 use ZabbixBot\Services\MessageService;
 use ZabbixBot\Services\TelegramFactory;
 use ZabbixBot\Services\ZabbixService;
@@ -48,6 +51,14 @@ $service = new AlertService(
     fn(string $chatId, string $text, array $options): ?int => $messenger->sendMessage($chatId, $text, $options),
     fn(string $chatId): bool => $zabbix->isUser($chatId),
     (bool)$cfg->getNested('alerts.require_known_user', true),
+    // Кнопки "Квитувати"/"Коментар" під проблемою, мовою користувача (його налаштування /settings)
+    (bool)$cfg->getNested('alerts.ack_buttons', true)
+        ? function (string $chatId, string $eventId): string {
+            $lang = LangService::getInstance();
+            $lang->setLang((new User($chatId))->get('lang') ?? ConfigService::getInstance()->getNested('telegram.lang'));
+            return AckService::keyboard($eventId, ['ack' => $lang->getNested('ack.button'), 'comment' => $lang->getNested('ack.commentButton')]);
+        }
+        : null,
 );
 
 $result = $service->handle($payload);

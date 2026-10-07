@@ -16,6 +16,8 @@ class ZabbixService {
     private FileCache $cache;
     /** Токен, під яким zabbixApi уже залогінений (щоб не логінитись на кожен виклик). */
     private ?string $loggedToken = null;
+    /** Текст помилки останнього невдалого request() (для показу користувачу). */
+    private ?string $lastError = null;
 
     public function __construct() {
         $cfg = ConfigService::getInstance();
@@ -418,7 +420,26 @@ class ZabbixService {
         return array_slice($problems, 0, $limit);
     }
 
-    private function request(string $zabbixMethod, array $params = [],string $userToken = null) {
+    /** event.acknowledge: прапорці action (можна поєднувати через |). */
+    public const ACK_CLOSE = 1;
+    public const ACK_ACKNOWLEDGE = 2;
+    public const ACK_MESSAGE = 4;
+
+    /**
+     * Квитування/коментар події токеном користувача (діють його права, в історії Zabbix - його ім'я).
+     * @return string|null null - успіх, інакше текст помилки Zabbix
+     */
+    public function acknowledgeEvent(string $userToken, string $eventId, int $action, ?string $message = null): ?string {
+        $params = ['eventids' => $eventId, 'action' => $action];
+        if ($message !== null && $message !== '') {
+            $params['message'] = $message;
+        }
+        $result = $this->request('event.acknowledge', $params, $userToken);
+        return is_array($result) ? null : ($this->lastError ?? 'unknown error');
+    }
+
+    private function request(string $zabbixMethod, array $params = [],?string $userToken = null) {
+        $this->lastError = null;
         try {
             $token = $userToken ?? $this->zabbixKey;
             if ($this->loggedToken !== $token) {
@@ -429,8 +450,10 @@ class ZabbixService {
             $result = $this->zabbixApi->call($zabbixMethod,$params);
             return $result;
         } catch (ZabbixApiException $ae) {
+            $this->lastError = $ae->getMessage();
             mainLOG('zabbix','error','ApiException: '.$ae->getCode().'. ErrorMessage: '.$ae->getMessage());
         } catch (Exception $e) {
+            $this->lastError = $e->getMessage();
             mainLOG('zabbix','error','Errorcode: '.$e->getCode().'. ErrorMessage: '.$e->getMessage());
         }
         return null;

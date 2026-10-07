@@ -44,7 +44,32 @@ final class AlertStoreTest extends TestCase
     {
         $s = $this->store();
         $s->put('../1', '-100/../2', 5);
-        $this->assertSame([], array_filter(glob($this->dir.'/*.json'), fn($f) => !preg_match('#/[0-9]+_-?[0-9]+\.json$#', $f)));
+        $this->assertSame([], array_filter(glob($this->dir.'/*.json'), fn($f) => !preg_match('#/(msg_-?[0-9]+_[0-9]+|[0-9]+_-?[0-9]+)\.json$#', $f)));
+    }
+
+    public function testMessageIndex(): void
+    {
+        $s = $this->store();
+        $s->put('100', '55', 777);
+        $this->assertSame('100', $s->eventForMessage('55', 777), 'put() indexes the problem message');
+        $this->assertNull($s->eventForMessage('56', 777), 'keyed by chat');
+
+        $this->assertTrue($s->indexMessage('100', '55', 778));
+        $this->assertSame('100', $s->eventForMessage('55', 778));
+        $this->assertFalse($s->indexMessage('100', '55', 0));
+        $this->assertFalse($s->indexMessage('', '55', 9));
+
+        $s->delete('100', '55');
+        $this->assertSame('100', $s->eventForMessage('55', 777), 'recovery keeps the index: resolved problems can still be commented');
+    }
+
+    public function testPurgeAlsoRemovesExpiredIndex(): void
+    {
+        $s = $this->store(30);
+        $s->indexMessage('1', '5', 10);
+        touch($this->dir.'/msg_5_10.json', time() - 31 * 86400);
+        $this->assertSame(1, $s->purgeExpired());
+        $this->assertNull($s->eventForMessage('5', 10));
     }
 
     public function testPurgeRemovesOnlyExpiredAndIsThrottled(): void
