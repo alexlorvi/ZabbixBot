@@ -129,7 +129,6 @@ class SettingsCommand extends Command {
         return [
             'title' => $msg->getNested('command.settings.title'),
             'lang' => $msg->getNested('command.settings.lang'),
-            'media' => $msg->getNested('command.settings.media'),
             'media_names' => $msg->getNested('command.settings.media_names', []),
             'media_missing' => $msg->getNested('command.settings.media_missing'),
             'severity' => $msg->getNested('command.settings.severity'),

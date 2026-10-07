@@ -95,19 +95,6 @@ class ZabbixService {
         return $this->findUser($userID) !== null;
     }
 
-    public function getUserInfo($userID) {
-        $user = $this->findUser($userID);
-        if ($user === null) {
-            return "Здається ми не знайомі.";
-        }
-        $reply  = '*Info:*'.PHP_EOL;
-        $reply .= '*Username* '.$user['username'].PHP_EOL;
-        $reply .= '*Name*     '.$user['name'].PHP_EOL;
-        $reply .= '*SurName*  '.$user['surname'].PHP_EOL;
-        $reply .= '*severity* '.$user['severity'].PHP_EOL;
-        return $reply;
-    }
-
     public function getUserID($userID) {
         return $this->findUser($userID)['userid'] ?? null;
     }

@@ -18,7 +18,6 @@ class HostCommand extends Command {
 
     private const HOST_BUTTONS = 10;
     private const SEVERITY_ICON = ["\u{26AA}", "\u{1F535}", "\u{1F7E1}", "\u{1F7E0}", "\u{1F534}", "\u{26D4}"];
-    private const SEP = "\u{2796}\u{2796}\u{2796}\u{2796}\u{2796}\u{2796}\u{2796}\u{2796}";
 
     public function __construct() {
         $this->msg = LangService::getInstance();

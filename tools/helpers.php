@@ -32,14 +32,6 @@ function fixpath(string $path):string {
     return (substr($path,-1) == '/') ? $path : $path.'/';
 }
 
-/* function startsWith($string, $startString) { 
-    return substr($string, 0, strlen($startString)) === $startString; 
-}
-
-function endsWith($string, $endString) { 
-    return substr($string, 0, strlen($startString)) === $startString; 
-} */
-
 function getNestedFromArray($searchArray,string $path, $default = null):mixed {
     if (!is_array($searchArray)) return $default;
     $keys = explode('.', $path);

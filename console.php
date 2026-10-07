@@ -9,11 +9,10 @@ use ZabbixBot\Commands\CLI\RetryMessagesCommand;
 use ZabbixBot\Commands\CLI\SendMessagesCommand;
 use ZabbixBot\Commands\CLI\Top200SyncCommand;
 use ZabbixBot\Commands\CLI\WebhookCommand;
-use ZabbixBot\CustomHttpClient;
 use ZabbixBot\Services\ConfigService;
 use ZabbixBot\Services\MessageService;
+use ZabbixBot\Services\TelegramFactory;
 use ZabbixBot\Services\ZabbixService;
-use Telegram\Bot\Api;
 
 
 // Run only on CLI mode
@@ -24,7 +23,7 @@ if (php_sapi_name() != 'cli') {
 $config = ConfigService::getInstance()->getNested('telegram');
 
 // Initialize the Telegram API
-$telegram = \ZabbixBot\Services\TelegramFactory::make($config);
+$telegram = TelegramFactory::make($config);
 
 // Initialize the MessageService
 $messageService = new MessageService($telegram);

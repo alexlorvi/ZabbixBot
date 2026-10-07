@@ -55,13 +55,6 @@ class FileCache
         @unlink($this->path($key));
     }
 
-    public function clear(): void
-    {
-        foreach (glob($this->dir.'/*.json') ?: [] as $file) {
-            @unlink($file);
-        }
-    }
-
     /**
      * Прочитати-змінити-записати під ексклюзивним блокуванням.
      * $fn отримує поточне значення (або null) і повертає нове.
@@ -83,19 +76,6 @@ class FileCache
             flock($lock, LOCK_UN);
             fclose($lock);
         }
-    }
-
-    /** Прибрати файли, які не змінювались довше $maxAge секунд. */
-    public function gc(int $maxAge): int
-    {
-        $removed = 0;
-        foreach (glob($this->dir.'/*') ?: [] as $file) {
-            if (is_file($file) && $this->now() - (int)filemtime($file) > $maxAge) {
-                @unlink($file);
-                $removed++;
-            }
-        }
-        return $removed;
     }
 
     private function path(string $key): string

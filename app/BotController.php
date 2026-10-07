@@ -5,8 +5,6 @@ namespace ZabbixBot;
 use Telegram\Bot\Api;
 
 use ZabbixBot\Services\ConfigService;
-use ZabbixBot\UserController;
-use ZabbixBot\CustomHttpClient;
 use ZabbixBot\Services\FileCache;
 use ZabbixBot\Services\MessageService;
 use ZabbixBot\Services\LangService;

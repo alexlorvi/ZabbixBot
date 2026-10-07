@@ -41,8 +41,8 @@ Single test / filter: `php vendor/bin/phpunit --filter testName tests/SomeTest.p
 
 - `config/config.php` is the real, gitignored config (copy `config/config.php.sample` to create it). Sections: `telegram` (bot token, webhook URL/secret, rate limit, proxy, registered command classes), `zabbix` (host/API key, `admin_group`, per-user token TTL and optional `token_key` for encryption, group aliases), `net` (SNMP community strings for `/cisco` and `/apc`), `logger` (paths, levels, retention), `emoji`.
 - `config/constants.php` defines path constants (`ROOT_PATH`, `CONF_PATH`, `MSG_PATH`, `LOG_PATH`, `USER_PREF_PATH`, `CACHE_PATH`, `TOKEN_PATH`, `COMMANDS_PATH`) used throughout the app instead of hardcoded paths.
-- `ConfigService` (singleton) loads `config/config.php` and exposes `get()`/`getNested('a.b.c', $default)` dot-path lookups.
-- `LangService` (singleton) loads `config/messages.php` plus any `config/messages.<lang>.php` variants (e.g. `messages.ua.php`) and exposes the same `get()`/`getNested()` dot-path API, falling back to the default language if a key is missing in the active one. Active language is per-user (`telegram.lang` default, overridable per user via preferences).
+- `ConfigService` (singleton) loads `config/config.php` and exposes `getNested('a.b.c', $default)` dot-path lookups.
+- `LangService` (singleton) loads `config/messages.php` plus any `config/messages.<lang>.php` variants (e.g. `messages.ua.php`) and exposes the same `getNested()` dot-path API, falling back to the default language if a key is missing in the active one. Active language is per-user (`telegram.lang` default, overridable per user via preferences).
 
 ## Architecture
 
@@ -80,16 +80,30 @@ Single test / filter: `php vendor/bin/phpunit --filter testName tests/SomeTest.p
 
 ## Workflow
 
-After finishing each stage of work: update `README.md` (user-facing behaviour) and this file's architecture/backlog sections (`## Current state / open backlog` — remove what's done, add newly discovered gaps), then commit the changes (code + docs + tests together). Commit only completed, tested stages.
+After finishing each stage of work: update `README.md` (user-facing behaviour) and this file's architecture/backlog sections (`## Current state / open backlog
 
-## Current state / open backlog
+Found during the 2026-10-07 full review, not fixed yet (ordered by priority):
 
-Carried over from `temp/TODO.md`, not yet implemented — scope them individually rather than assuming they're related:
-- Favorite commands and auto-delete-alarms-after-N-days (language/per-media severity/menu-style are done, see above) — would extend `app/Models/User.php`. Auto-delete can build on `AlertStore` (records alert message_ids), but it only keeps unresolved problems — deleting resolved ones needs records kept until the deadline.
-- `app:uphost` scheduled CLI command: ping a host repeatedly, notify on recovery or timeout.
-- Auto-delete of old alerts could now reuse `AlertStore` (the "send alarm" API with reply-to-recover is done, see above); user replies *to* an alert (`message.reply_to_message` in `BotController`, e.g. to ack from Telegram) are not handled yet.
-- ScriptServer integration: external system, config shape (URL/auth/script name/params) not yet specified — needs clarification before implementation.
+**P0 — bugs**
+- `MessageService::sendMessage()` calls `chatActionTyping()` (`sendChatAction`) *outside* the try: when Telegram/proxy is down it throws before the send/enqueue, so the message is lost and `alert.php` answers 500 — the retry queue never sees it. Tests don't catch it because `MessageServiceRetryTest` mocks `sendChatAction` as always succeeding. Fix: wrap in try (or drop the typing action for alerts/`keep_keyboard`), add a test where `sendChatAction` throws.
+- Host card buttons Ping/Cisco/APC (`HostCommand::showHost()`, `callback_data` `/ping <ip>` etc.) don't work: for a `callback_query` the SDK's `commandsHandler()` parses the *card message's* text/entities, not `callback_data`; the `/ev<id>` entities in the card are unknown commands and the SDK falls back to `help`. Fix: use `net:<ping|cisco|apc>:<ip>` callback data, add a `Router` kind and call `PingService`/`NetTools` directly from `BotController`.
+- `GroupEventsCommand::getReplyFromText()` has `stripos()` arguments reversed, so `/zabbixFull`-style aliases always return the short list.
+- English locale has no `command.menu.menuaction`, so the reply-keyboard `/menu` style does nothing in English; `BotController` also sends a debug "Menu option" message before every reply-keyboard action.
+- `BotController::handleWebhook()` logs `print_r($updates)` without `true` — dumps the update into the HTTP response body and logs `1`.
+- `/ping` host is only `escapeshellarg`-ed, not validated: a host starting with `-` is parsed by `ping` as an option; `count` 0 is not clamped to ≥1. Validate host (hostname/IP regex) like `NetTools` does.
 
-Known minor gaps (low priority): there is no automated test for `ZabbixService` network paths (`getUserProblems()`, `event.get` batching, login caching) or for the thin side-effecting part of `BotController::handleMessage()` — the pure parts (`Router`, `EventFormatter`, `CommandList`, `FileCache`/`RateLimiter`/`UpdateDeduplicator`) are covered. The old client's tests relied on an injectable Transport interface that the SDK-based code here doesn't have; adding a transport seam to `ZabbixService::request()` would close this.
+**P1 — robustness / UX**
+- `UserController` calls `exit` when the user's Zabbix token can't be issued (`getUserEvents()`, `displayUserEvents*()`) — the user gets silence; reply with an error message instead.
+- Hard-coded Ukrainian strings outside `LangService` (rate-limit notice, `HostCommand`, `ResetCommand` "Га?", `/menu:reset` reply, `CiscoCommand` "Зачекайте", `NetTools` errors) — English users get Ukrainian.
+- `/reset` admin check is duplicated (`ResetCommand` vs `UserController::resetCache()`); make the command use the controller.
+- `require-dev` `symfony/var-dumper` is unused; `ZabbixService::getHostsByGroup()` selects `groups` that nobody reads; `getGroups()` params are only ever called with defaults.
+- No test for `ZabbixService` network paths or the side-effecting part of `BotController::handleMessage()`; adding a transport seam to `ZabbixService::request()` would close this (the old client's tests relied on an injectable Transport).
+
+**Features (carried over from `temp/TODO.md`, scope individually)**
+- Ack / comment / close a problem from Telegram: reply to an alert (`message.reply_to_message` → look up `AlertStore` by message_id → `event.acknowledge` with the user's own token) and/or an "Ack" inline button on alerts and `/ev<id>`. Needs a reverse index message_id → event in `AlertStore`.
+- Auto-delete alerts after N days — builds on `AlertStore`, but it deletes records on recovery, so resolved alerts would need to be kept until the deadline. Telegram only lets bots delete messages younger than 48h — so the realistic variant is "delete the problem+recovery pair N hours after recovery".
+- Favorite commands — would extend `app/Models/User.php`.
+- `app:uphost` CLI: ping a host repeatedly, notify on recovery or timeout.
+- ScriptServer integration ([bugy/script-server](https://github.com/bugy/script-server), deployed with LDAP auth). API: `GET /scripts`, `POST /executions/start` (multipart: script name + parameters, returns execution id), `GET /executions/status/{id}`, output via WebSocket `/executions/io/{id}` or `/history/execution_log/long/{id}`; login is `POST /login` (form, session cookie + XSRF/`X-Requested-With`). No API tokens; `access.user_header_name` + `trusted_ips` works only with auth disabled. Options: (a) bot logs in with a dedicated LDAP service account, the bot enforces per-user access (Zabbix usergroup → allowed scripts in config) and passes the initiator as a parameter / logs it — simplest; (b) a second script-server instance without auth, reachable only from the bot host, identifying users via `user_header_name` = Zabbix username (keeps script-server's own ACL and audit; needs Zabbix usernames == LDAP usernames); (c) asking users for their LDAP password in Telegram — rejected. Open questions: script-server version, which scripts/parameters, whether Zabbix usernames match LDAP logins, sync (wait for output) vs async (notify on finish).
 
 Local `config/config.php` (gitignored): `zabbix.admin_group` is the real Zabbix group name (admin status = membership, verified in prod); `net.snmp_community_cisco` is still empty (so `/cisco` errors) — pending human input. `config/config.php.sample` is the structural source of truth — when adding a new config key or registering a new command class, add it there too, otherwise `config.php` silently drifts out of sync.

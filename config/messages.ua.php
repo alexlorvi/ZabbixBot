@@ -34,12 +34,10 @@ return [
             ],
             'menuaction' => [
                 unichr(0x1F4D6).' Деталізація активних' => [
-                    //'class' => '',
                     'method' => 'displayUserEventsFull',
                     'params' => [],
                 ],
                 unichr(0x1F4CB).' Список активних' => [
-                    //'class' => '',
                     'method' => 'displayUserEventsSummary',
                     'params' => [],
                 ],
@@ -55,7 +53,6 @@ return [
             'description' => 'Персональні налаштування: мова, рівень критичності сповіщень, стиль /menu',
             'title' => "\u{2699}\u{FE0F} Налаштування",
             'lang' => 'Мова',
-            'media' => 'Notification method',
             'media_names' => ['tg' => 'Telegram', 'email' => 'Пошта'],
             'media_missing' => 'Цей спосіб сповіщення не налаштований у Zabbix.',
             'severity' => 'Рівень критичності сповіщень',
@@ -65,9 +62,6 @@ return [
             'severity_levels' => ['Не класифіковано', 'Інформація', 'Попередження', 'Середня', 'Висока', 'Аварія'],
             'back' => "\u{00AB} Назад",
             'close' => 'Закрити',
-            'closed' => 'Налаштування закрито.',
-            'updated' => 'Налаштування оновлено.',
-            'zabbix_error' => 'Не вдалося оновити налаштування в Zabbix. Спробуйте пізніше.',
         ],
         'host' => [
             'description' => 'Пошук хоста Zabbix за іменем чи IP, стан і активні проблеми',

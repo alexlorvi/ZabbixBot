@@ -6,7 +6,6 @@ use Telegram\Bot\Api;
 use Telegram\Bot\Actions;
 use Telegram\Bot\Keyboard\Keyboard;
 use Telegram\Bot\Exceptions\TelegramResponseException;
-use ZabbixBot\Services\MessageQueue;
 
 class MessageService {
 

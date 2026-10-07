@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-# SNMP community передається з commands.php через env (config/config.php)
+# SNMP community передається через env з NetTools::cisco() (config: net.snmp_community_cisco)
 comunity=${SNMP_COMMUNITY:?SNMP_COMMUNITY is not set}
 
 if [ -z "$1" ]; then

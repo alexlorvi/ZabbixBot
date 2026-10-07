@@ -43,7 +43,6 @@ return [
             'description' => 'Personal settings: language, notification severity, /menu style',
             'title' => "\u{2699}\u{FE0F} Settings",
             'lang' => 'Language',
-            'media' => 'Notification method',
             'media_names' => ['tg' => 'Telegram', 'email' => 'Email'],
             'media_missing' => 'This notification method is not configured in Zabbix.',
             'severity' => 'Notification severity',
@@ -53,9 +52,6 @@ return [
             'severity_levels' => ['Not classified', 'Information', 'Warning', 'Average', 'High', 'Disaster'],
             'back' => "\u{00AB} Back",
             'close' => 'Close',
-            'closed' => 'Settings closed.',
-            'updated' => 'Settings updated.',
-            'zabbix_error' => 'Could not update settings in Zabbix. Try again later.',
         ],
         'host' => [
             'description' => 'Search a Zabbix host by name or IP, show its status and active problems',

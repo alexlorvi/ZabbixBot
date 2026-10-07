@@ -24,10 +24,6 @@ class ConfigService {
         return self::$instance;
     }
 
-    public function get($key,$default = null):mixed {
-        return $this->config[$key] ?? $default;
-    }
-
     public function getNested($path, $default = null):mixed {
         return getNestedFromArray($this->config,$path,$default);
     }

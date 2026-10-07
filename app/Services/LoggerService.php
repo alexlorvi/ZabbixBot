@@ -39,10 +39,6 @@ class LoggerService {
         }
     }
 
-    public function getLogger($loggerType):mixed {
-        return $this->loggers[$loggerType] ?? null;
-    }
-    
     public function createUserLogger($userId) {
         if (!isset($this->loggers[$userId])) {
             $loggerConfig = ConfigService::getInstance()->getNested('logger');
