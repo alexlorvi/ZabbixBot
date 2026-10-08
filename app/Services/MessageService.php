@@ -120,6 +120,25 @@ class MessageService {
     }
 
     /** Видаляє повідомлення (кнопка "Закрити" в панелях). */
+    /**
+     * Надсилає зображення (PNG у пам'яті) з підписом. Не ставиться в чергу повторів: графік на момент
+     * доставки вже застарів би, користувач просто натисне кнопку ще раз. @return int|null message_id
+     */
+    public function sendPhoto($chatId, string $png, string $caption = '', $options = []): ?int {
+        try {
+            $sent = $this->telegram->sendPhoto(array_merge([
+                'chat_id' => $chatId,
+                'photo' => \Telegram\Bot\FileUpload\InputFile::createFromContents($png, 'chart.png'),
+                'caption' => $caption,
+            ], $options));
+            userLOG($chatId,'info','< [photo] '.$caption);
+            return (int)$sent->getMessageId() ?: null;
+        } catch (\Exception $e) {
+            userLOG($chatId,'error','Photo Send Error - '.$e->getMessage());
+            return null;
+        }
+    }
+
     public function deleteMessage($chatId, $messageId): void {
         try {
             $this->telegram->deleteMessage(['chat_id' => $chatId, 'message_id' => $messageId]);

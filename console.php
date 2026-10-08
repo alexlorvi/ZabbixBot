@@ -10,6 +10,7 @@ use ZabbixBot\Commands\CLI\PingJobCommand;
 use ZabbixBot\Commands\CLI\RetryMessagesCommand;
 use ZabbixBot\Commands\CLI\SendMessagesCommand;
 use ZabbixBot\Commands\CLI\Top200SyncCommand;
+use ZabbixBot\Commands\CLI\UphostJobCommand;
 use ZabbixBot\Commands\CLI\WebhookCommand;
 use ZabbixBot\Services\ConfigService;
 use ZabbixBot\Services\MessageService;
@@ -40,6 +41,7 @@ $application->add(new Top200SyncCommand(new ZabbixService()));
 $application->add(new WebhookCommand());
 $application->add(new MediaTypeCommand(new ZabbixService()));
 $application->add(new PingJobCommand($messageService)); // прихована: фоновий /ping > 100 пакетів
+$application->add(new UphostJobCommand($messageService)); // прихована: фонове очікування /uphost
 
 // Run the application
 $application->run();

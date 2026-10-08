@@ -215,6 +215,21 @@ class BotController {
                     }
                     break;
 
+                case 'host':
+                    // Кнопки розширеної картки хоста: графіки, останні дані, події за 24 год (HostCommand::handleCallback)
+                    (new \ZabbixBot\Commands\HostCommand())->handleCallback($this->message, $this->user, $chatId, $arg);
+                    break;
+
+                case 'up':
+                    // "⏳" картки хоста / "Чекати ще" (up:<host>) і "Скасувати" під "чекаю" (up:x:<key>)
+                    $uphost = new \ZabbixBot\Commands\UphostCommand();
+                    if (str_starts_with($arg, 'x:')) {
+                        $uphost->cancel($this->message, $chatId, substr($arg, 2), $messageId);
+                    } else {
+                        $uphost->run($this->message, $chatId, $arg, 0, $messageId);
+                    }
+                    break;
+
                 case 'set':
                     // Натискання кнопки панелі налаштувань (SettingsCommand) - все через editMessage
                     $parts = explode(':', $arg);

@@ -13,6 +13,9 @@ final class RouterTest extends TestCase
         $this->assertSame(['hostid', '10'], Router::classify('/hostid10'));
         $this->assertSame(['menu', 'full'], Router::classify('menu:full'));
         $this->assertSame(['set', 'sev:tg:3'], Router::classify('set:sev:tg:3'));
+        $this->assertSame(['host', 'c:59534:24h'], Router::classify('host:c:59534:24h'));
+        $this->assertSame(['up', '10.0.0.1'], Router::classify('up:10.0.0.1'));
+        $this->assertSame(['up', 'x:0123456789'], Router::classifyCallback('up:x:0123456789'));
         $this->assertSame(['sec', '3600'], Router::classify('/3600sec'));
         $this->assertSame(['hours', '24'], Router::classify('/24h'));
         $this->assertSame(['menuaction', 'Full'], Router::classify('Full', ['Full' => []]));

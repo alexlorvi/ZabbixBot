@@ -39,6 +39,7 @@ return [
             ZabbixBot\Commands\CiscoCommand::class,
             ZabbixBot\Commands\ApcCommand::class,
             ZabbixBot\Commands\SettingsCommand::class,
+            ZabbixBot\Commands\UphostCommand::class,
         ],
     ],
     'zabbix' => [
@@ -57,6 +58,10 @@ return [
         // Base64 від 32 байт (sodium secretbox) для шифрування tokens/<chat_id>.key.
         // Без нього токени зберігаються нешифрованими (лише права 0600).
         //'token_key' => '',
+        // Кнопка "Останні дані" картки /host: шаблони ключів item-ів ("*" - будь-що), у такому порядку.
+        // За замовчуванням - ping/доступність, uptime, CPU/пам'ять, модель/серійник/ОС.
+        //'latest_items' => ['icmpping*', 'system.uptime*', 'system.hw.model', 'system.hw.serialnumber', 'system.sw.os*',
+        //    'cpmCPUTotal5minRev', 'azsName', 'azslocation', 'rating'],
         // may be couple groups, but alias wont work with underscore names
         'groups' => [
             [
@@ -86,6 +91,10 @@ return [
         //'ping_max_count' => 10000,
         // PHP CLI для фонових завдань (вебхук працює під php-fpm). За замовчуванням PHP_BINDIR/php
         //'php_cli' => '/usr/bin/php',
+        // /uphost: скільки чекати за замовчуванням і найбільше (хв), як часто пінгувати (с)
+        //'uphost_minutes' => 30,
+        //'uphost_max_minutes' => 720,
+        //'uphost_interval' => 15,
     ],
     'logger' => [
         'file_path' => LOG_PATH,

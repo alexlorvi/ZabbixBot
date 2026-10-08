@@ -456,6 +456,122 @@ class ZabbixService {
         return array_slice($problems, 0, $limit);
     }
 
+    /** Графіки хоста (токен користувача - лише доступні йому). @return list<array{graphid:string,name:string}> */
+    public function hostGraphs(string $userToken, string $hostId): array {
+        return (array)$this->request('graph.get', [
+            'hostids' => $hostId,
+            'output' => ['graphid', 'name'],
+            'sortfield' => 'name',
+        ], $userToken);
+    }
+
+    /**
+     * Графік з item-ами (у порядку графіка) і хостом; null - немає або немає доступу.
+     * @return array{graphid:string,name:string,host:string,items:list<array>}|null
+     */
+    public function graphWithItems(string $userToken, string $graphId): ?array {
+        $res = $this->request('graph.get', [
+            'graphids' => $graphId,
+            'output' => ['graphid', 'name'],
+            'selectGraphItems' => ['itemid', 'sortorder'],
+            'selectItems' => ['itemid', 'name', 'units', 'value_type', 'trends'],
+            'selectHosts' => ['hostid', 'name'],
+        ], $userToken);
+        if (!is_array($res) || !isset($res[0])) {
+            return null;
+        }
+        $g = $res[0];
+        $items = array_column((array)($g['items'] ?? []), null, 'itemid');
+        $gitems = (array)($g['gitems'] ?? []);
+        usort($gitems, fn($a, $b) => (int)$a['sortorder'] <=> (int)$b['sortorder']);
+        $ordered = [];
+        foreach ($gitems as $gi) {
+            if (isset($items[$gi['itemid']])) {
+                $ordered[] = $items[$gi['itemid']];
+            }
+        }
+        return ['graphid' => (string)$g['graphid'], 'name' => (string)$g['name'], 'host' => (string)($g['hosts'][0]['name'] ?? ''), 'items' => $ordered];
+    }
+
+    /**
+     * Точки числових item-ів за період: [itemid => list<[clock, avg, min?, max?]>].
+     * Довгі періоди - з trends (годинні avg/min/max), якщо item їх зберігає, інакше з history.
+     */
+    public function itemPoints(string $userToken, array $items, int $from, int $to, bool $preferTrends): array {
+        $out = [];
+        $byType = [];
+        $trendIds = [];
+        foreach ($items as $it) {
+            $type = (int)$it['value_type'];
+            if (!in_array($type, [0, 3], true)) {
+                continue; // графіки лише для float/unsigned
+            }
+            $out[$it['itemid']] = [];
+            if ($preferTrends && (string)($it['trends'] ?? '0') !== '0') {
+                $trendIds[] = $it['itemid'];
+            } else {
+                $byType[$type][] = $it['itemid'];
+            }
+        }
+        if ($trendIds) {
+            foreach ((array)$this->request('trend.get', [
+                'itemids' => $trendIds, 'time_from' => $from, 'time_till' => $to,
+                'output' => ['itemid', 'clock', 'value_min', 'value_avg', 'value_max'],
+            ], $userToken) as $t) {
+                $out[$t['itemid']][] = [(int)$t['clock'], (float)$t['value_avg'], (float)$t['value_min'], (float)$t['value_max']];
+            }
+        }
+        foreach ($byType as $type => $ids) {
+            foreach ((array)$this->request('history.get', [
+                'history' => $type, 'itemids' => $ids, 'time_from' => $from, 'time_till' => $to,
+                'output' => ['itemid', 'clock', 'value'], 'sortfield' => 'clock', 'sortorder' => 'ASC',
+            ], $userToken) as $h) {
+                $out[$h['itemid']][] = [(int)$h['clock'], (float)$h['value']];
+            }
+        }
+        foreach ($out as &$points) {
+            usort($points, fn($a, $b) => $a[0] <=> $b[0]);
+        }
+        return $out;
+    }
+
+    /** Активні item-и хоста з останніми значеннями і value map. @return list<array<string,mixed>> */
+    public function hostItems(string $userToken, string $hostId): array {
+        return (array)$this->request('item.get', [
+            'hostids' => $hostId,
+            'monitored' => true,
+            'output' => ['itemid', 'name', 'key_', 'lastvalue', 'lastclock', 'units', 'value_type'],
+            'selectValueMap' => ['mappings'],
+        ], $userToken);
+    }
+
+    /**
+     * Проблемні події хоста від $from (включно із закритими), новіші першими; r_clock - час відновлення або 0.
+     * @return list<array{eventid:string,clock:string,name:string,severity:string,r_clock:int}>
+     */
+    public function hostEvents(string $userToken, string $hostId, int $from, int $limit = 30): array {
+        $events = (array)$this->request('event.get', [
+            'hostids' => $hostId,
+            'source' => 0,
+            'object' => 0,
+            'value' => 1,
+            'time_from' => $from,
+            'output' => ['eventid', 'clock', 'name', 'severity', 'r_eventid'],
+            'sortfield' => ['clock', 'eventid'],
+            'sortorder' => 'DESC',
+            'limit' => $limit,
+        ], $userToken);
+        $rIds = array_values(array_filter(array_column($events, 'r_eventid'), fn($id) => (string)$id !== '0'));
+        $rClock = $rIds ? array_column((array)$this->request('event.get', [
+            'eventids' => $rIds,
+            'output' => ['eventid', 'clock'],
+        ], $userToken), 'clock', 'eventid') : [];
+        foreach ($events as &$e) {
+            $e['r_clock'] = (int)($rClock[$e['r_eventid']] ?? 0);
+        }
+        return $events;
+    }
+
     /** Медіатип за назвою (сервісний ключ). @return array<string,mixed>|null */
     public function findMediaTypeByName(string $name): ?array {
         $res = $this->request('mediatype.get', ['output' => ['mediatypeid', 'name'], 'filter' => ['name' => $name]]);

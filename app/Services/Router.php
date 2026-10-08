@@ -7,7 +7,7 @@ final class Router
 {
     /**
      * @param array<string,mixed> $menuActions ключі reply-клавіатури /menu
-     * @return array{0:string,1:string} [тип, аргумент]; типи: ev, hostid, menu, set, net, ack, ackmsg, sec, hours, menuaction, text, command
+     * @return array{0:string,1:string} [тип, аргумент]; типи: ev, hostid, menu, set, net, host, up, ack, ackmsg, sec, hours, menuaction, text, command
      */
     public static function classify(string $text, array $menuActions = []): array
     {
@@ -16,6 +16,8 @@ final class Router
         if (str_starts_with($text, 'menu:')) return ['menu', substr($text, 5)];
         if (str_starts_with($text, 'set:')) return ['set', substr($text, 4)];
         if (str_starts_with($text, 'net:')) return ['net', substr($text, 4)];
+        if (str_starts_with($text, 'host:')) return ['host', substr($text, 5)];
+        if (str_starts_with($text, 'up:')) return ['up', substr($text, 3)];
         if (preg_match('/^ack:([0-9]+)$/', $text, $m)) return ['ack', $m[1]];
         if (preg_match('/^ackmsg:([0-9]+)$/', $text, $m)) return ['ackmsg', $m[1]];
         if (preg_match('/^\/([0-9]+)sec$/i', $text, $m)) return ['sec', $m[1]];

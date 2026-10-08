@@ -120,15 +120,27 @@ class PingService {
         return is_array($job) && (int)($job['until'] ?? 0) > $now;
     }
 
-    /** Чи PID - це ще наш app:ping-job для цього чату (PID-и перевикористовуються). */
-    public static function isOurJob(int $pid, string $chatId): bool {
+    /**
+     * Чи PID - це ще наше фонове завдання ($command <chatId> [<host>]) - PID-и перевикористовуються.
+     * $host - для app:uphost-job, де в чаті кілька завдань.
+     */
+    public static function isOurJob(int $pid, string $chatId, string $command = 'app:ping-job', ?string $host = null): bool {
         $cmdline = @file_get_contents('/proc/'.$pid.'/cmdline');
         if ($pid <= 0 || $cmdline === false) {
             return false;
         }
         $args = explode("\0", rtrim($cmdline, "\0"));
-        $i = array_search('app:ping-job', $args, true);
-        return $i !== false && ($args[$i + 1] ?? null) === $chatId;
+        $i = array_search($command, $args, true);
+        return $i !== false && ($args[$i + 1] ?? null) === $chatId && ($host === null || ($args[$i + 2] ?? null) === $host);
+    }
+
+    /** Чи хост відповідає на ping (2 пакети, чекаємо до 2 с; досить однієї відповіді). */
+    public static function alive(string $host): bool {
+        if (!self::validHost($host)) {
+            return false;
+        }
+        exec('ping -q -c 2 -i 0.5 -W 2 '.escapeshellarg($host).' >/dev/null 2>&1', $out, $rc);
+        return $rc === 0;
     }
 
     /** Зупиняє завдання разом з дочірнім ping (уся група процесів, запуск через setsid). */
