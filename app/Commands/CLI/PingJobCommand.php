@@ -48,6 +48,7 @@ class PingJobCommand extends Command
             $msg->setLang($input->getOption('lang'));
         }
         $cache = new FileCache(CACHE_PATH);
+        userLOG($chatId, 'info', "Background ping started: $host x$count (pid ".getmypid().')');
         try {
             $result = (new PingService())->summary($host, $count);
             $options = ['keep_keyboard' => true];

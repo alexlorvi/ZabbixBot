@@ -122,18 +122,63 @@ class PingCommand extends TgCommand {
         }
         $notice = $telegram->sendMessage(['chat_id' => $chatId, 'text' => sprintf($this->msg->getNested('command.ping.bulkStarted'), $host, $count)] + self::replyParams($replyTo));
 
-        $php = (string)ConfigService::getInstance()->getNested('net.php_cli', PHP_SAPI === 'cli' ? PHP_BINARY : PHP_BINDIR.'/php');
+        $php = self::phpCli();
         $cmd = implode(' ', array_map('escapeshellarg', array_merge(
             [$php, ROOT_PATH.'/console.php', 'app:ping-job', (string)$chatId, $host, (string)$count,
                 '--lang='.$this->msg->getLang(), '--notice='.(int)$notice->getMessageId()],
             $replyTo !== null ? ['--reply-to='.$replyTo] : [],
         )));
-        exec('nohup '.$cmd.' > /dev/null 2>&1 &', $out, $rc);
-        userLOG($chatId,'info',"< Background ping for host: $host, count $count (rc $rc)");
-        if ($rc !== 0) {
+        $error = self::launch($cmd, $php);
+        if ($error !== null) {
             PingService::unlock($cache, (string)$chatId);
+            mainLOG('main','error','Background ping not started: '.$error);
+            userLOG($chatId,'error','Background ping not started: '.$error);
             $telegram->sendMessage(['chat_id' => $chatId, 'text' => $this->msg->getNested('command.ping.bulkFailed')]);
+            return;
         }
+        userLOG($chatId,'info',"< Background ping for host: $host, count $count");
+    }
+
+    /** PHP CLI для фонових завдань: net.php_cli, інакше PHP_BINDIR/php (вебхук працює під php-fpm, PHP_BINARY - не CLI). */
+    public static function phpCli(): string {
+        return (string)ConfigService::getInstance()->getNested('net.php_cli', PHP_SAPI === 'cli' ? PHP_BINARY : PHP_BINDIR.'/php');
+    }
+
+    /** Файл з виводом фонових завдань (помилки запуску PHP, винятки). */
+    public static function jobLog(): string {
+        return rtrim((string)ConfigService::getInstance()->getNested('logger.file_path', LOG_PATH), '/').'/ping-job.log';
+    }
+
+    /**
+     * Запускає команду у фоні і перевіряє, що процес справді живий.
+     * @return string|null null - запущено, інакше причина
+     */
+    public static function launch(string $cmd, string $php): ?string {
+        if (!function_exists('exec') || in_array('exec', array_map('trim', explode(',', (string)ini_get('disable_functions'))), true)) {
+            return 'exec() is disabled (disable_functions)';
+        }
+        if (!is_executable($php)) {
+            return "PHP CLI not found or not executable: $php (set net.php_cli)";
+        }
+        $log = self::jobLog();
+        clearstatcache();
+        $before = (int)@filesize($log);
+        // вивід - у лог (а не /dev/null), $! - PID фонового процесу
+        exec('nohup '.$cmd.' >> '.escapeshellarg($log).' 2>&1 & echo $!', $out, $rc);
+        $pid = (int)($out[0] ?? 0);
+        if ($rc !== 0 || $pid <= 0) {
+            return "launch failed (rc $rc)";
+        }
+        usleep(500000);
+        if (!file_exists('/proc/'.$pid)) {
+            // процес уже завершився - або миттєва помилка, або дуже швидкий пінг; причина - в кінці логу
+            clearstatcache();
+            $tail = trim((string)@file_get_contents($log, false, null, $before));
+            if ($tail !== '' && preg_match('/error|exception|not found|denied|fatal/i', $tail)) {
+                return "process $pid exited: $tail";
+            }
+        }
+        return null;
     }
 
     private static function replyParams(?int $replyTo): array {
