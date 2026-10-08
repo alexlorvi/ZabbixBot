@@ -84,21 +84,63 @@ class PingService {
         return trim(implode("\n", $lines));
     }
 
-    /** Чи можна запустити фоновий пінг у цьому чаті (один одночасно); займає слот на $seconds. */
+    /**
+     * Чи можна запустити фоновий пінг у цьому чаті (один одночасно); займає слот на $seconds.
+     * Слот: {until, pid?, notice?, host?} - дані для кнопки "Скасувати" (attachJob()).
+     */
     public static function tryLock(FileCache $cache, string $chatId, int $seconds): bool {
         $now = $cache->now();
         $got = false;
-        $cache->update('pingjob:'.$chatId, function ($until) use ($now, $seconds, &$got) {
-            if ((int)$until > $now) {
-                return $until;
+        $cache->update('pingjob:'.$chatId, function ($job) use ($now, $seconds, &$got) {
+            if (self::active($job, $now)) {
+                return $job;
             }
             $got = true;
-            return $now + $seconds;
+            return ['until' => $now + $seconds];
         });
         return $got;
     }
 
+    /** Запам'ятати запущене завдання (PID = група процесів, setsid) і повідомлення "взято в роботу". */
+    public static function attachJob(FileCache $cache, string $chatId, int $pid, int $noticeId, string $host): void {
+        $cache->update('pingjob:'.$chatId, fn($job) => ['pid' => $pid, 'notice' => $noticeId, 'host' => $host] + (array)$job);
+    }
+
+    /** @return array{until:int,pid?:int,notice?:int,host?:string}|null активне фонове завдання чату */
+    public static function job(FileCache $cache, string $chatId): ?array {
+        $job = $cache->get('pingjob:'.$chatId, PHP_INT_MAX);
+        return self::active($job, $cache->now()) ? $job : null;
+    }
+
     public static function unlock(FileCache $cache, string $chatId): void {
         $cache->delete('pingjob:'.$chatId);
+    }
+
+    private static function active($job, int $now): bool {
+        return is_array($job) && (int)($job['until'] ?? 0) > $now;
+    }
+
+    /** Чи PID - це ще наш app:ping-job для цього чату (PID-и перевикористовуються). */
+    public static function isOurJob(int $pid, string $chatId): bool {
+        $cmdline = @file_get_contents('/proc/'.$pid.'/cmdline');
+        if ($pid <= 0 || $cmdline === false) {
+            return false;
+        }
+        $args = explode("\0", rtrim($cmdline, "\0"));
+        $i = array_search('app:ping-job', $args, true);
+        return $i !== false && ($args[$i + 1] ?? null) === $chatId;
+    }
+
+    /** Зупиняє завдання разом з дочірнім ping (уся група процесів, запуск через setsid). */
+    public static function killJob(int $pid): bool {
+        if ($pid <= 1) {
+            return false;
+        }
+        if (function_exists('posix_kill')) {
+            return posix_kill(-$pid, 15); // від'ємний PID - уся група, 15 = SIGTERM
+        }
+        // /bin/sh буває dash, чий вбудований kill не розуміє "--"; procps kill - розуміє
+        exec('/bin/kill -TERM -- -'.$pid.' 2>/dev/null', $out, $rc);
+        return $rc === 0;
     }
 }

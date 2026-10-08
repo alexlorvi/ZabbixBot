@@ -208,6 +208,10 @@ class BotController {
                         case 'apc':
                             (new \ZabbixBot\Commands\ApcCommand())->run($this->message, $chatId, $net['target']);
                             break;
+                        case 'cancel':
+                            // "Скасувати" під "взято в роботу" фонового пінгу
+                            (new \ZabbixBot\Commands\PingCommand())->cancel($this->tgBot, $chatId, $messageId);
+                            break;
                     }
                     break;
 

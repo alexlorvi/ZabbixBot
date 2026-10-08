@@ -120,7 +120,9 @@ class PingCommand extends TgCommand {
             $telegram->sendMessage(['chat_id' => $chatId, 'text' => $this->msg->getNested('command.ping.bulkBusy')] + self::replyParams($replyTo));
             return;
         }
-        $notice = $telegram->sendMessage(['chat_id' => $chatId, 'text' => sprintf($this->msg->getNested('command.ping.bulkStarted'), $host, $count)] + self::replyParams($replyTo));
+        // кнопка без параметрів: скасовується завдання свого чату (PID - у слоті, не в callback_data)
+        $cancel = json_encode(['inline_keyboard' => [[['text' => $this->msg->getNested('command.ping.cancelButton'), 'callback_data' => 'net:cancel']]]], JSON_UNESCAPED_UNICODE);
+        $notice = $telegram->sendMessage(['chat_id' => $chatId, 'text' => sprintf($this->msg->getNested('command.ping.bulkStarted'), $host, $count), 'reply_markup' => $cancel] + self::replyParams($replyTo));
 
         $php = self::phpCli();
         $cmd = implode(' ', array_map('escapeshellarg', array_merge(
@@ -128,15 +130,49 @@ class PingCommand extends TgCommand {
                 '--lang='.$this->msg->getLang(), '--notice='.(int)$notice->getMessageId()],
             $replyTo !== null ? ['--reply-to='.$replyTo] : [],
         )));
-        $error = self::launch($cmd, $php);
+        $error = self::launch($cmd, $php, $pid);
         if ($error !== null) {
             PingService::unlock($cache, (string)$chatId);
+            try {
+                $telegram->deleteMessage(['chat_id' => $chatId, 'message_id' => $notice->getMessageId()]);
+            } catch (\Exception $e) {
+            }
             mainLOG('main','error','Background ping not started: '.$error);
             userLOG($chatId,'error','Background ping not started: '.$error);
             $telegram->sendMessage(['chat_id' => $chatId, 'text' => $this->msg->getNested('command.ping.bulkFailed')]);
             return;
         }
-        userLOG($chatId,'info',"< Background ping for host: $host, count $count");
+        PingService::attachJob($cache, (string)$chatId, $pid, (int)$notice->getMessageId(), $host);
+        userLOG($chatId,'info',"< Background ping for host: $host, count $count, pid $pid");
+    }
+
+    /**
+     * Кнопка "Скасувати" під "взято в роботу": зупиняє фонове завдання свого чату (разом з ping),
+     * звільняє слот і замінює повідомлення на "скасовано".
+     */
+    public function cancel(Api $telegram, $chatId, ?int $messageId): void {
+        $cache = new FileCache(CACHE_PATH);
+        $job = PingService::job($cache, (string)$chatId);
+        $pid = (int)($job['pid'] ?? 0);
+        if ($job === null || !PingService::isOurJob($pid, (string)$chatId)) {
+            // вже завершився (або слот завис) - просто прибираємо кнопку
+            if ($job !== null) {
+                PingService::unlock($cache, (string)$chatId);
+            }
+            $text = $this->msg->getNested('command.ping.alreadyDone');
+        } else {
+            PingService::killJob($pid);
+            PingService::unlock($cache, (string)$chatId);
+            userLOG($chatId,'info','Background ping cancelled, pid '.$pid);
+            $text = sprintf($this->msg->getNested('command.ping.cancelled'), (string)($job['host'] ?? ''));
+        }
+        if ($messageId !== null) {
+            try {
+                $telegram->editMessageText(['chat_id' => $chatId, 'message_id' => $messageId, 'text' => $text]);
+            } catch (\Exception $e) {
+                mainLOG('main','error','Telegram Error: '.$e->getMessage());
+            }
+        }
     }
 
     /** PHP CLI для фонових завдань: net.php_cli, інакше PHP_BINDIR/php (вебхук працює під php-fpm, PHP_BINARY - не CLI). */
@@ -151,9 +187,11 @@ class PingCommand extends TgCommand {
 
     /**
      * Запускає команду у фоні і перевіряє, що процес справді живий.
+     * Через setsid: PID = група процесів, тож "Скасувати" зупиняє і php, і дочірній ping.
+     * @param int $pid out: PID запущеного процесу
      * @return string|null null - запущено, інакше причина
      */
-    public static function launch(string $cmd, string $php): ?string {
+    public static function launch(string $cmd, string $php, &$pid = 0): ?string {
         if (!function_exists('exec') || in_array('exec', array_map('trim', explode(',', (string)ini_get('disable_functions'))), true)) {
             return 'exec() is disabled (disable_functions)';
         }
@@ -164,7 +202,7 @@ class PingCommand extends TgCommand {
         clearstatcache();
         $before = (int)@filesize($log);
         // вивід - у лог (а не /dev/null), $! - PID фонового процесу
-        exec('nohup '.$cmd.' >> '.escapeshellarg($log).' 2>&1 & echo $!', $out, $rc);
+        exec('setsid nohup '.$cmd.' >> '.escapeshellarg($log).' 2>&1 & echo $!', $out, $rc);
         $pid = (int)($out[0] ?? 0);
         if ($rc !== 0 || $pid <= 0) {
             return "launch failed (rc $rc)";

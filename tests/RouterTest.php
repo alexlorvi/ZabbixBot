@@ -62,6 +62,8 @@ final class RouterTest extends TestCase
         $this->assertSame(['tool' => 'ping', 'target' => '10.0.0.1', 'count' => null], Router::parseNet('ping:10.0.0.1'), 'old host card buttons');
         $this->assertSame(['tool' => 'ping', 'target' => '2001:db8::1', 'count' => 4], Router::parseNet('ping.4:2001:db8::1'), 'IPv6 keeps its colons');
         $this->assertSame(['tool' => 'cisco', 'target' => '10.0.0.1', 'count' => null], Router::parseNet('cisco:10.0.0.1'));
+        $this->assertSame(['net', 'cancel'], Router::classifyCallback('net:cancel'));
+        $this->assertSame(['tool' => 'cancel', 'target' => '', 'count' => null], Router::parseNet('cancel'), 'Cancel carries no pid - the chat\'s own job is cancelled');
     }
 
     public function testRepeatMarkup(): void

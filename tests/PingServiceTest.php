@@ -52,6 +52,42 @@ final class PingServiceTest extends TestCase
         $this->assertSame('ping: unknown host', PingService::statistics(['ping: unknown host']), 'no statistics - whole output');
     }
 
+    public function testJobInfoForCancel(): void
+    {
+        $dir = sys_get_temp_dir().'/zbxbot-pingjob-'.bin2hex(random_bytes(4));
+        $now = 1000;
+        $cache = new FileCache($dir, function () use (&$now) { return $now; });
+        $this->assertNull(PingService::job($cache, '42'));
+        PingService::tryLock($cache, '42', 60);
+        PingService::attachJob($cache, '42', 4321, 77, '8.8.8.8');
+        $this->assertSame(['pid' => 4321, 'notice' => 77, 'host' => '8.8.8.8', 'until' => 1060], PingService::job($cache, '42'));
+        $this->assertFalse(PingService::tryLock($cache, '42', 60), 'attached job still holds the slot');
+        $now += 61;
+        $this->assertNull(PingService::job($cache, '42'), 'expired');
+        array_map('unlink', glob($dir.'/*') ?: []);
+        @rmdir($dir);
+    }
+
+    public function testIsOurJobAndKillWholeGroup(): void
+    {
+        if (!is_dir('/proc/self') || !is_executable('/usr/bin/setsid')) {
+            $this->markTestSkipped('needs Linux /proc and setsid');
+        }
+        // процес з "app:ping-job 42" у командному рядку і дочірнім sleep, як справжнє завдання з ping
+        $pid = (int)exec('setsid sh -c \'sleep 30 & wait\' app:ping-job 42 > /dev/null 2>&1 & echo $!');
+        usleep(200000);
+        $this->assertTrue(PingService::isOurJob($pid, '42'));
+        $this->assertFalse(PingService::isOurJob($pid, '43'), 'other chat');
+        $this->assertFalse(PingService::isOurJob(getmypid(), '42'), 'not a ping job');
+        $children = trim((string)shell_exec('pgrep -g '.$pid));
+        $this->assertNotSame('', $children);
+
+        $this->assertTrue(PingService::killJob($pid));
+        usleep(300000);
+        $this->assertSame('', trim((string)shell_exec('pgrep -g '.$pid)), 'php and its ping are both gone');
+        $this->assertFalse(PingService::killJob(1), 'never pid 1');
+    }
+
     public function testOneBackgroundJobPerChat(): void
     {
         $dir = sys_get_temp_dir().'/zbxbot-pinglock-'.bin2hex(random_bytes(4));

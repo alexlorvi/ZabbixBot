@@ -22,6 +22,9 @@ return [
             'bulkBusy' => "Your previous long ping is still running, please wait.",
             'bulkResult' => "\u{1F4CA} Ping %s, %d packets %s",
             'bulkFailed' => "Could not start the background ping.",
+            'cancelButton' => "\u{2716}\u{FE0F} Cancel",
+            'cancelled' => "\u{26D4} Ping %s cancelled.",
+            'alreadyDone' => "This ping has already finished.",
         ],
         'events' => [
             'description' => 'Events Command to get event by Group Name',
