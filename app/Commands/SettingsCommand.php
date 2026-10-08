@@ -276,7 +276,7 @@ class SettingsCommand extends Command {
     }
 
     /**
-     * Чиста функція: підменю одного media - чекбокси severity та "Назад". Provisioned (LDAP) - лише перегляд.
+     * Чиста функція: підменю одного media - чекбокси severity, "Назад" і "Закрити". Provisioned (LDAP) - лише перегляд.
      * @param array<string,mixed> $i18n
      * @param array{id:string,label:string,mask:int,active:bool,provisioned:bool}|null $media null - media вже немає
      * @return array{0:string,1:Keyboard}
@@ -305,8 +305,10 @@ class SettingsCommand extends Command {
                 }
             }
         }
+        // "Закрити" й тут - щоб не повертатися на головну лише заради закриття панелі
         $keyboard->row([
             Keyboard::inlineButton(['text' => $i18n['back'], 'callback_data' => 'set:main']),
+            Keyboard::inlineButton(['text' => $i18n['close'], 'callback_data' => 'set:close']),
         ]);
 
         return [$text, $keyboard];

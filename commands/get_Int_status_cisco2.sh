@@ -27,11 +27,14 @@ echo -e "\nCisco IPaddr:"
    awk -v cmn=$comunity -v ip=$1 -v OFS='\t' '{cmd="/usr/bin/snmpget -v2c -Ovq -c "cmn" "ip" ifDescr."$2; \
    cmd | getline var; close(cmd); print $1,var }'
 
-echo -e "\nPort\tVlan"
-/usr/bin/snmpwalk -v2c -Osq -c $comunity $1 1.3.6.1.4.1.9.9.68.1.2.2.1.2 | awk -F "[. ]" -v ip=$1 -v cmn=$comunity \
-   '{cmd1="/usr/bin/snmpget -v2c -Ovq -c "cmn" "ip" ifDescr."$10; \
-   cmd2="/usr/bin/snmpget -v2c -Ovq -c "cmn" "ip" 1.3.6.1.4.1.9.9.46.1.3.1.1.4.1."$11; cmd1 | \
-   getline var1; close(cmd1); printf var1; cmd2 | getline var2; close(cmd2); printf "\t"var2"("$11")\n"}'
+#echo -e "\nPort\tVlan"
+#/usr/bin/snmpwalk -v2c -Osq -c $comunity $1 1.3.6.1.4.1.9.9.68.1.2.2.1.2 | awk -F "[. ]" -v ip=$1 -v cmn=$comunity \
+#   '{cmd1="/usr/bin/snmpget -v2c -Ovq -c "cmn" "ip" ifDescr."$10; \
+#   cmd2="/usr/bin/snmpget -v2c -Ovq -c "cmn" "ip" 1.3.6.1.4.1.9.9.46.1.3.1.1.4.1."$11; cmd1 | \
+#   getline var1; close(cmd1); printf var1; cmd2 | getline var2; close(cmd2); printf "\t"var2"("$11")\n"}'
+
+SCRIPT_DIR=$(dirname "$0")
+"$SCRIPT_DIR/cisco-port-vlan.sh" $1
 
 echo -e "\n"
 /usr/bin/ping -c 3 $1

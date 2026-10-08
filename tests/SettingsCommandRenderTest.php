@@ -91,13 +91,15 @@ final class SettingsCommandRenderTest extends TestCase
         $this->assertStringContainsString("\u{2705}", $rows[2][1]['text']);
         $this->assertSame('set:sev:58:3', $rows[1][1]['callback_data']);
         $this->assertSame('set:main', $rows[3][0]['callback_data']);
+        $this->assertSame('set:close', $rows[3][1]['callback_data'], 'Close right in the submenu');
     }
 
     public function testProvisionedMediaIsReadOnly(): void
     {
         [$text, $keyboard] = SettingsCommand::renderMediaFromState($this->i18n(), ['id' => '7', 'label' => 'Email', 'mask' => 32, 'active' => true, 'provisioned' => true]);
         $rows = $keyboard->toArray()['inline_keyboard'];
-        $this->assertCount(1, $rows, 'only Back');
+        $this->assertCount(1, $rows, 'only Back/Close');
+        $this->assertSame(['set:main', 'set:close'], array_map(fn($b) => $b['callback_data'], $rows[0]));
         $this->assertStringContainsString('Disaster', $text);
         $this->assertStringContainsString('from LDAP', $text);
     }
@@ -107,6 +109,7 @@ final class SettingsCommandRenderTest extends TestCase
         [$text, $keyboard] = SettingsCommand::renderMediaFromState($this->i18n(), null);
         $rows = $keyboard->toArray()['inline_keyboard'];
         $this->assertCount(1, $rows);
+        $this->assertSame(['set:main', 'set:close'], array_map(fn($b) => $b['callback_data'], $rows[0]));
         $this->assertStringContainsString('not configured', $text);
     }
 
