@@ -139,11 +139,14 @@ class MessageService {
         }
     }
 
-    public function deleteMessage($chatId, $messageId): void {
+    /** @return bool чи видалено (false - помилка, вже логована: старше 48 год, вже видалене, чат недоступний) */
+    public function deleteMessage($chatId, $messageId): bool {
         try {
             $this->telegram->deleteMessage(['chat_id' => $chatId, 'message_id' => $messageId]);
+            return true;
         } catch (\Exception $e) {
             userLOG($chatId,'error','Delete Error - '.$e->getMessage());
+            return false;
         }
     }
 
@@ -258,11 +261,8 @@ class MessageService {
             if ($alert !== null) {
                 if ($alert['mode'] === 'problem' && $messageId > 0) {
                     $this->alerts()->put((string)$alert['event_id'], (string)$alert['chat_id'], $messageId);
-                } else {
-                    $this->alerts()->indexMessage((string)$alert['event_id'], (string)$alert['chat_id'], $messageId);
-                    if ($alert['mode'] === 'recovery') {
-                        $this->alerts()->delete((string)$alert['event_id'], (string)$alert['chat_id']);
-                    }
+                } elseif ($messageId > 0) {
+                    $this->alerts()->addAlertMessage((string)$alert['event_id'], (string)$alert['chat_id'], $messageId, $alert['mode'] === 'recovery');
                 }
             }
         }

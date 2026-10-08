@@ -3,9 +3,12 @@
 namespace ZabbixBot\Services;
 
 /**
- * Відповідність "подія Zabbix + користувач" -> message_id надісланого сповіщення.
- * Один файл на пару: <dir>/<eventId>_<chatId>.json, всередині {"message_id":..,"sent_at":..}.
- * Потрібно, щоб сповіщення про відновлення йшло відповіддю на сповіщення про проблему.
+ * Відповідність "подія Zabbix + користувач" -> надіслані сповіщення.
+ * Один файл на пару: <dir>/<eventId>_<chatId>.json, всередині
+ * {"message_id":<проблема>|null,"sent_at":..,"messages":[[id,sent_at],...],"recovered_at"?:..}.
+ * message_id - щоб відновлення/оновлення йшло відповіддю на сповіщення про проблему; messages - усі сповіщення
+ * події (проблема, оновлення, відновлення) для автовидалення (app:alert-cleanup); recovered_at - коли прийшло
+ * відновлення (запис після цього не видаляється одразу, а чекає на app:alert-cleanup).
  *
  * Зворотний індекс <dir>/msg_<chatId>_<messageId>.json -> {"event_id":..} - для квитування відповіддю на будь-яке
  * сповіщення події (проблема/оновлення/відновлення). Не видаляється при відновленні (квитувати можна й закриту
@@ -27,8 +30,53 @@ class AlertStore
     /** Запам'ятати сповіщення про проблему (для відповіді відновленням) і проіндексувати його message_id. */
     public function put(string $eventId, string $chatId, int $messageId): bool
     {
-        $ok = $this->write($this->path($eventId, $chatId), ['message_id' => $messageId, 'sent_at' => ($this->clock)()]);
+        $now = ($this->clock)();
+        $ok = $this->write($this->path($eventId, $chatId), ['message_id' => $messageId, 'sent_at' => $now, 'messages' => [[$messageId, $now]]]);
         return $this->indexMessage($eventId, $chatId, $messageId) && $ok;
+    }
+
+    /**
+     * Ще одне сповіщення події (оновлення чи відновлення): індекс + список повідомлень запису для автовидалення.
+     * Запису немає (проблема не дійшла чи надіслана до оновлення бота) - створюється без message_id.
+     * $recovered - це відновлення: запис позначається recovered_at.
+     */
+    public function addAlertMessage(string $eventId, string $chatId, int $messageId, bool $recovered = false): bool
+    {
+        if (!$this->indexMessage($eventId, $chatId, $messageId)) {
+            return false;
+        }
+        $now = ($this->clock)();
+        $rec = $this->read($this->path($eventId, $chatId)) ?? ['message_id' => null, 'sent_at' => $now, 'messages' => []];
+        $rec['messages'][] = [$messageId, $now];
+        if ($recovered) {
+            $rec['recovered_at'] = $now;
+        }
+        return $this->write($this->path($eventId, $chatId), $rec);
+    }
+
+    /**
+     * Записи, відновлені не пізніше $before (для app:alert-cleanup).
+     * @return list<array{event_id:string,chat_id:string,messages:list<array{0:int,1:int}>,recovered_at:int}>
+     */
+    public function recoveredBefore(int $before): array
+    {
+        $out = [];
+        foreach (glob($this->dir.'/*_*.json') ?: [] as $file) {
+            if (!preg_match('/^([0-9]+)_(-?[0-9]+)\.json$/', basename($file), $m)) {
+                continue; // msg_<chat>_<id>.json - зворотний індекс
+            }
+            $rec = $this->read($file);
+            if (isset($rec['recovered_at']) && (int)$rec['recovered_at'] <= $before) {
+                $out[] = ['event_id' => $m[1], 'chat_id' => $m[2], 'messages' => (array)($rec['messages'] ?? []), 'recovered_at' => (int)$rec['recovered_at']];
+            }
+        }
+        return $out;
+    }
+
+    /** Прибрати зворотний індекс повідомлення (воно видалене з чату). */
+    public function forgetMessage(string $chatId, int $messageId): void
+    {
+        @unlink($this->messagePath($chatId, $messageId));
     }
 
     /** Лише зворотний індекс message_id -> подія (оновлення/відновлення, повідомлення /ev<id>). */
@@ -48,11 +96,18 @@ class AlertStore
         return is_array($rec) && isset($rec['event_id']) ? (string)$rec['event_id'] : null;
     }
 
+    /** message_id сповіщення про проблему (ціль для відповіді) або null. */
     public function get(string $eventId, string $chatId): ?int
     {
-        $raw = @file_get_contents($this->path($eventId, $chatId));
+        $rec = $this->read($this->path($eventId, $chatId));
+        return isset($rec['message_id']) ? (int)$rec['message_id'] : null;
+    }
+
+    private function read(string $file): ?array
+    {
+        $raw = @file_get_contents($file);
         $rec = $raw === false ? null : json_decode($raw, true);
-        return is_array($rec) && isset($rec['message_id']) ? (int)$rec['message_id'] : null;
+        return is_array($rec) ? $rec : null;
     }
 
     public function delete(string $eventId, string $chatId): void

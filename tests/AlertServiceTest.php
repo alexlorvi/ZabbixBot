@@ -57,7 +57,7 @@ final class AlertServiceTest extends TestCase
         $this->assertFileExists($this->dir.'/900_42.json');
     }
 
-    public function testRecoveryRepliesToProblemAndForgetsIt(): void
+    public function testRecoveryRepliesToProblemAndMarksItRecovered(): void
     {
         $svc = $this->service();
         $svc->handle($this->payload());
@@ -67,7 +67,10 @@ final class AlertServiceTest extends TestCase
         $this->assertSame(500, $reply['message_id']);
         $this->assertTrue($reply['allow_sending_without_reply']);
         $this->assertSame(['event_id' => '900', 'chat_id' => '42', 'mode' => 'recovery'], $this->sent[1][2]['alert']);
-        $this->assertFileDoesNotExist($this->dir.'/900_42.json');
+        // запис лишається до app:alert-cleanup: обидва повідомлення події, позначка відновлення
+        $rec = json_decode(file_get_contents($this->dir.'/900_42.json'), true);
+        $this->assertSame([500, 501], array_column($rec['messages'], 0));
+        $this->assertArrayHasKey('recovered_at', $rec);
     }
 
     public function testRecoveryWithoutKnownProblemIsPlainSend(): void

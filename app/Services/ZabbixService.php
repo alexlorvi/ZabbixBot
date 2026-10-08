@@ -400,14 +400,35 @@ class ZabbixService {
      * Виконується токеном користувача, тож видно лише дозволені йому хости.
      * @return list<array<string,mixed>> хости з interfaces (до $limit)
      */
+    /**
+     * Пошук хостів для /host: за іменем/технічним іменем, за IP інтерфейсу, а запит лише з цифр (до 4) - ще й
+     * за точним тегом інвентаря (inventory.tag, як у TOP200; такі хости - першими).
+     */
     public function searchHosts(string $userToken, string $query, int $limit = 11): array {
-        $fields = ['output' => ['hostid', 'host', 'name', 'status'], 'selectInterfaces' => ['ip', 'dns', 'main', 'type']];
-        $found = (array)$this->request('host.get', $fields + [
+        $fields = ['output' => ['hostid', 'host', 'name', 'status'], 'selectInterfaces' => ['ip', 'dns', 'main', 'type'], 'selectInventory' => ['tag']];
+        $found = [];
+        if (self::isTagQuery($query)) {
+            // searchInventory - це LIKE, тож "3" знайде й "30", "135": точний збіг відбираємо тут
+            $candidates = (array)$this->request('host.get', $fields + [
+                'searchInventory' => ['tag' => $query],
+                'startSearch' => true,
+                'sortfield' => 'name',
+                'limit' => 500,
+            ], $userToken);
+            $found = array_values(array_filter($candidates, fn($h) => is_array($h['inventory'] ?? null) && (string)($h['inventory']['tag'] ?? '') === $query));
+        }
+        $byName = (array)$this->request('host.get', $fields + [
             'search' => ['name' => $query, 'host' => $query],
             'searchByAny' => true,
             'sortfield' => 'name',
             'limit' => $limit,
         ], $userToken);
+        $have = array_column($found, 'hostid');
+        foreach ($byName as $h) {
+            if (!in_array($h['hostid'], $have, true)) {
+                $found[] = $h;
+            }
+        }
 
         if (preg_match('/^[0-9.]{3,15}$/', $query) === 1) {
             $ifaces = (array)$this->request('hostinterface.get', [
@@ -425,6 +446,11 @@ class ZabbixService {
             }
         }
         return array_slice($found, 0, $limit);
+    }
+
+    /** Запит /host, який може бути тегом інвентаря: лише цифри, до 4. */
+    public static function isTagQuery(string $query): bool {
+        return preg_match('/^[0-9]{1,4}$/', $query) === 1;
     }
 
     /** @return array<string,mixed>|null */

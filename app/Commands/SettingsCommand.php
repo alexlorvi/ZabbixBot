@@ -56,7 +56,8 @@ class SettingsCommand extends Command {
 
         switch ($action) {
             case 'lang':
-                if ($value !== null) {
+                // лише мови, для яких є переклад (callback_data можна підробити)
+                if ($value !== null && array_key_exists($value, (array)$this->msg->getNested('languageNames', []))) {
                     $user->setPreference('lang', $value);
                     LangService::getInstance()->setLang($value);
                 }
@@ -65,6 +66,13 @@ class SettingsCommand extends Command {
             case 'menu':
                 if (in_array($value, ['inline', 'reply'], true)) {
                     $user->setPreference('menu_style', $value);
+                }
+                break;
+
+            case 'autodel':
+                // автовидалення сповіщень після відновлення (app:alert-cleanup), за замовчуванням увімкнене
+                if (in_array($value, ['on', 'off'], true)) {
+                    $user->setPreference('alert_autodelete', $value === 'on' ? '1' : '0');
                 }
                 break;
 
@@ -170,6 +178,9 @@ class SettingsCommand extends Command {
             'menu_style' => $msg->getNested('command.settings.menu_style'),
             'menu_style_inline' => $msg->getNested('command.settings.menu_style_inline'),
             'menu_style_reply' => $msg->getNested('command.settings.menu_style_reply'),
+            'autodelete' => $msg->getNested('command.settings.autodelete'),
+            'autodelete_on' => $msg->getNested('command.settings.autodelete_on'),
+            'autodelete_off' => $msg->getNested('command.settings.autodelete_off'),
             'severity_levels' => $msg->getNested('command.settings.severity_levels', []),
             'back' => $msg->getNested('command.settings.back'),
             'close' => $msg->getNested('command.settings.close'),
@@ -193,7 +204,8 @@ class SettingsCommand extends Command {
     public function render(UserController $user): array {
         $lang = (string)$user->getPreference('lang', 'en');
         $menuStyle = (string)$user->getPreference('menu_style', 'inline');
-        return self::renderFromState($this->i18n(), $lang, $menuStyle, $this->userMedia($user));
+        $autoDelete = (string)$user->getPreference('alert_autodelete', '1') !== '0';
+        return self::renderFromState($this->i18n(), $lang, $menuStyle, $this->userMedia($user), $autoDelete);
     }
 
     /** Підменю одного media (severity). @return array{0:string,1:Keyboard} */
@@ -219,18 +231,20 @@ class SettingsCommand extends Command {
     }
 
     /**
-     * Чиста функція: головна панель (мова, стиль /menu, способи сповіщення з поточними рівнями, "Закрити"). Без "Назад".
+     * Чиста функція: головна панель (мова, стиль /menu, автовидалення сповіщень, способи сповіщення з поточними
+     * рівнями, "Закрити"). Без "Назад".
      * @param array<string,mixed> $i18n
      * @param list<array{id:string,label:string,mask:int,active:bool,provisioned:bool}> $media mediaEntries()
      * @return array{0:string,1:Keyboard}
      */
-    public static function renderFromState(array $i18n, string $lang, string $menuStyle, array $media): array {
+    public static function renderFromState(array $i18n, string $lang, string $menuStyle, array $media, bool $autoDelete = true): array {
         $languageNames = $i18n['languageNames'];
 
         $text = $i18n['title']."\n\n".
             $i18n['lang'].': '.($languageNames[$lang] ?? $lang)."\n".
             $i18n['menu_style'].': '.
-            ($menuStyle === 'reply' ? $i18n['menu_style_reply'] : $i18n['menu_style_inline']);
+            ($menuStyle === 'reply' ? $i18n['menu_style_reply'] : $i18n['menu_style_inline'])."\n".
+            ($i18n['autodelete'] ?? '').': '.($autoDelete ? ($i18n['autodelete_on'] ?? 'on') : ($i18n['autodelete_off'] ?? 'off'));
         if ($media) {
             $text .= "\n\n".$i18n['media'].':';
             foreach ($media as $m) {
@@ -258,6 +272,13 @@ class SettingsCommand extends Command {
             Keyboard::inlineButton([
                 'text' => ($menuStyle === 'reply' ? "\u{2705} " : '').$i18n['menu_style_reply'],
                 'callback_data' => 'set:menu:reply',
+            ]),
+        ]);
+
+        $keyboard->row([
+            Keyboard::inlineButton([
+                'text' => ($autoDelete ? "\u{2705} " : "\u{2B1C} ").($i18n['autodelete'] ?? ''),
+                'callback_data' => 'set:autodel:'.($autoDelete ? 'off' : 'on'),
             ]),
         ]);
 

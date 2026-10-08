@@ -3,7 +3,6 @@
 namespace ZabbixBot\Services;
 
 use ZabbixBot\Services\ConfigService;
-use Exception;
 
 class LangService {
     private static $instance;
@@ -48,7 +47,23 @@ class LangService {
         return self::$instance;
     }
 
-    public function getNested($path, $default = ''):mixed {
+    /**
+     * Значення ключа в усіх мовах (без дублікатів і порожніх) - напр. щоб розпізнати підписи кнопок reply-клавіатури,
+     * надісланої іншою мовою до зміни мови користувачем.
+     * @return list<string>
+     */
+    public function allVariants(string $path): array {
+        $out = [];
+        foreach ($this->messages as $messages) {
+            $v = getNestedFromArray($messages, $path, null);
+            if (is_string($v) && $v !== '') {
+                $out[] = $v;
+            }
+        }
+        return array_values(array_unique($out));
+    }
+
+        public function getNested($path, $default = ''):mixed {
         return getNestedFromArray($this->messages[$this->currentLanguage],$path, getNestedFromArray($this->messages[$this->defaultName],$path, $default));
     }
 

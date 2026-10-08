@@ -56,7 +56,8 @@ class HostCommand extends Command {
             }
             return;
         }
-        if (mb_strlen($query) < 3 || mb_strlen($query) > 64) {
+        // коротший запит - лише тег інвентаря (цифри)
+        if ((mb_strlen($query) < 3 && !ZabbixService::isTagQuery($query)) || mb_strlen($query) > 64) {
             $messenger->sendMessage($chatId, $this->t('length'));
             return;
         }
@@ -81,6 +82,10 @@ class HostCommand extends Command {
         $keyboard = Keyboard::make()->inline();
         foreach (array_slice($hosts, 0, self::HOST_BUTTONS) as $h) {
             $label = (string)$h['name'];
+            $tag = is_array($h['inventory'] ?? null) ? (string)($h['inventory']['tag'] ?? '') : '';
+            if ($tag !== '' && $tag === $query) {
+                $label = '#'.$tag.' '.$label;
+            }
             $ip = $this->mainIp($h);
             if ($ip !== null) {
                 $label .= ' ('.$ip.')';
@@ -267,6 +272,9 @@ class HostCommand extends Command {
     private function isExact(array $host, string $q): bool {
         $q = mb_strtolower($q);
         if (mb_strtolower((string)$host['name']) === $q || mb_strtolower((string)$host['host']) === $q) {
+            return true;
+        }
+        if (ZabbixService::isTagQuery($q) && is_array($host['inventory'] ?? null) && (string)($host['inventory']['tag'] ?? '') === $q) {
             return true;
         }
         foreach ($host['interfaces'] ?? [] as $if) {

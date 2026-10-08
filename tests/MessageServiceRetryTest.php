@@ -6,7 +6,6 @@ use PHPUnit\Framework\TestCase;
 use Telegram\Bot\Api;
 use Telegram\Bot\Objects\Message;
 use ZabbixBot\Services\AlertStore;
-use ZabbixBot\Services\MessageQueue;
 use ZabbixBot\Services\MessageService;
 
 require_once __DIR__.'/stubs.php';
@@ -88,7 +87,8 @@ final class MessageServiceRetryTest extends TestCase
         $this->assertSame(['Problem', 'Resolved', 'Resolved again'], array_column($this->sent, 'text'));
         $this->assertArrayNotHasKey('reply_parameters', $this->sent[0]);
         $this->assertSame(700, json_decode($this->sent[1]['reply_parameters'], true)['message_id'], 'reply resolved at delivery time');
-        $this->assertNull((new AlertStore($this->dir))->get('900', '42'), 'recovery forgets the record');
+        $recovered = (new AlertStore($this->dir))->recoveredBefore(PHP_INT_MAX);
+        $this->assertSame([700, 701, 702], array_column($recovered[0]['messages'], 0), 'all event messages kept for auto-delete');
         $this->assertSame('900', (new AlertStore($this->dir))->eventForMessage('42', 701), 'queued recovery is indexed for replies after delivery');
     }
 

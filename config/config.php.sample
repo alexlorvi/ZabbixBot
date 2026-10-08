@@ -58,6 +58,11 @@ return [
         // Base64 від 32 байт (sodium secretbox) для шифрування tokens/<chat_id>.key.
         // Без нього токени зберігаються нешифрованими (лише права 0600).
         //'token_key' => '',
+        // Кеші (с): список користувачів з Telegram-media (з fallback на застарілий, якщо Zabbix недоступний),
+        // назви груп -> id (/events), назви медіатипів (/settings). /reset скидає всі.
+        //'user_cache_ttl' => 300,
+        //'group_cache_ttl' => 3600,
+        //'mediatype_cache_ttl' => 3600,
         // Кнопка "Останні дані" картки /host: шаблони ключів item-ів ("*" - будь-що), у такому порядку.
         // За замовчуванням - ping/доступність, uptime, CPU/пам'ять, модель/серійник/ОС.
         //'latest_items' => ['icmpping*', 'system.uptime*', 'system.hw.model', 'system.hw.serialnumber', 'system.sw.os*',

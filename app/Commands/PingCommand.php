@@ -122,7 +122,14 @@ class PingCommand extends TgCommand {
         }
         // кнопка без параметрів: скасовується завдання свого чату (PID - у слоті, не в callback_data)
         $cancel = json_encode(['inline_keyboard' => [[['text' => $this->msg->getNested('command.ping.cancelButton'), 'callback_data' => 'net:cancel']]]], JSON_UNESCAPED_UNICODE);
-        $notice = $telegram->sendMessage(['chat_id' => $chatId, 'text' => sprintf($this->msg->getNested('command.ping.bulkStarted'), $host, $count), 'reply_markup' => $cancel] + self::replyParams($replyTo));
+        try {
+            $notice = $telegram->sendMessage(['chat_id' => $chatId, 'text' => sprintf($this->msg->getNested('command.ping.bulkStarted'), $host, $count), 'reply_markup' => $cancel] + self::replyParams($replyTo));
+        } catch (\Exception $e) {
+            // без "взято в роботу" не запускаємо, а слот звільняємо - інакше чат до count+120 с отримував би "зайнято"
+            PingService::unlock($cache, (string)$chatId);
+            mainLOG('main','error','Background ping notice not sent: '.$e->getMessage());
+            return;
+        }
 
         $php = self::phpCli();
         $cmd = implode(' ', array_map('escapeshellarg', array_merge(
@@ -161,7 +168,11 @@ class PingCommand extends TgCommand {
             }
             $text = $this->msg->getNested('command.ping.alreadyDone');
         } else {
-            PingService::killJob($pid);
+            if (!PingService::killJob($pid)) {
+                // процес живий і слот лишається за ним - кнопка лишається, можна натиснути ще раз
+                mainLOG('main','error','Background ping not killed, pid '.$pid);
+                return;
+            }
             PingService::unlock($cache, (string)$chatId);
             userLOG($chatId,'info','Background ping cancelled, pid '.$pid);
             $text = sprintf($this->msg->getNested('command.ping.cancelled'), (string)($job['host'] ?? ''));
@@ -181,6 +192,8 @@ class PingCommand extends TgCommand {
     }
 
     /** Файл з виводом фонових завдань (помилки запуску PHP, винятки). */
+    private const JOB_LOG_MAX = 5 * 1024 * 1024;
+
     public static function jobLog(): string {
         return rtrim((string)ConfigService::getInstance()->getNested('logger.file_path', LOG_PATH), '/').'/ping-job.log';
     }
@@ -200,6 +213,11 @@ class PingCommand extends TgCommand {
         }
         $log = self::jobLog();
         clearstatcache();
+        // лог фонових завдань не росте безмежно: понад JOB_LOG_MAX - у .1 (одна попередня копія)
+        if ((int)@filesize($log) > self::JOB_LOG_MAX) {
+            @rename($log, $log.'.1');
+            clearstatcache();
+        }
         $before = (int)@filesize($log);
         // вивід - у лог (а не /dev/null), $! - PID фонового процесу
         exec('setsid nohup '.$cmd.' >> '.escapeshellarg($log).' 2>&1 & echo $!', $out, $rc);

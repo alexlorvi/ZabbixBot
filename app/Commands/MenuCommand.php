@@ -76,10 +76,4 @@ class MenuCommand extends Command {
 
         return [$text, $keyboard];
     }
-
-    /** Редагує вже надіслане повідомлення назад в inline-меню (виклик з "Назад" у налаштуваннях). */
-    public function editOpenInline(MessageService $messenger, UserController $user, $chatId, $messageId): void {
-        [$text, $keyboard] = $this->renderInline($user);
-        $messenger->editMessage($chatId, $messageId, $text, $keyboard);
-    }
 }

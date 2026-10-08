@@ -155,11 +155,14 @@ class BotController {
 
         // Registered User Area
         if ($this->user->isUser()) {
-            // Підписи кнопок reply-клавіатури /menu (MenuCommand::sendReply) => дія
-            $menu = [
-                (string)$this->msg->getNested('command.menu.full_button') => 'full',
-                (string)$this->msg->getNested('command.menu.summary_button') => 'summary',
-            ];
+            // Підписи кнопок reply-клавіатури /menu (MenuCommand::sendReply) => дія, усіма мовами:
+            // клавіатура, надіслана до зміни мови, лишається в користувача зі старими підписами
+            $menu = [];
+            foreach (['full' => 'command.menu.full_button', 'summary' => 'command.menu.summary_button'] as $action => $key) {
+                foreach ($this->msg->allVariants($key) as $label) {
+                    $menu[$label] = $action;
+                }
+            }
             [$kind, $arg] = $messageId !== null
                 ? Router::classifyCallback((string)$text)
                 : Router::classify((string)$text, $menu);

@@ -23,15 +23,24 @@ class User {
 
     public function readUserPreference() {
         if (file_exists($this->userPrefFile)) {
-            $json = file_get_contents($this->userPrefFile);
-            return json_decode($json, true);
+            $prefs = json_decode((string)file_get_contents($this->userPrefFile), true);
+            if (is_array($prefs)) {
+                return $prefs;
+            }
+            // пошкоджений файл не має ламати кожне повідомлення користувача (властивість типізована array)
+            mainLOG('main','error','Corrupt preferences file '.$this->userPrefFile);
         }
         return [];
     }
     
     public function writeUserPreference():void {
         try {
-            file_put_contents($this->userPrefFile, json_encode($this->userPreferences)); 
+            // атомарно: обірваний запис не залишить напівфайл
+            $tmp = $this->userPrefFile.'.'.getmypid().'.tmp';
+            if (file_put_contents($tmp, json_encode($this->userPreferences), LOCK_EX) === false || !rename($tmp, $this->userPrefFile)) {
+                @unlink($tmp);
+                throw new Exception('write failed');
+            }
             userLOG($this->userID,'info','Save preferences into file. '.$this->userPrefFile);
         } catch (Exception $e) {
             mainLOG('main','error','Error write file '.$this->userPrefFile.' '.$e->getMessage());

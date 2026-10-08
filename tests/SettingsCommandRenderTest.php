@@ -16,6 +16,9 @@ final class SettingsCommandRenderTest extends TestCase
             'menu_style' => 'Menu style',
             'menu_style_inline' => 'Inline',
             'menu_style_reply' => 'Reply keyboard',
+            'autodelete' => 'Auto-delete alerts',
+            'autodelete_on' => 'on',
+            'autodelete_off' => 'off',
             'severity_levels' => ['Not classified', 'Information', 'Warning', 'Average', 'High', 'Disaster'],
             'media' => 'Notification methods',
             'media_disabled' => 'disabled',
@@ -62,15 +65,28 @@ final class SettingsCommandRenderTest extends TestCase
         $this->assertSame('set:menu:reply', $menuRow[1]['callback_data']);
     }
 
+    public function testAutoDeleteToggle(): void
+    {
+        [$text, $keyboard] = SettingsCommand::renderFromState($this->i18n(), 'en', 'inline', []);
+        $this->assertStringContainsString('Auto-delete alerts: on', $text, 'on by default');
+        $row = $keyboard->toArray()['inline_keyboard'][2];
+        $this->assertSame('set:autodel:off', $row[0]['callback_data']);
+        $this->assertStringStartsWith("\u{2705}", $row[0]['text']);
+
+        [$text, $keyboard] = SettingsCommand::renderFromState($this->i18n(), 'en', 'inline', [], false);
+        $this->assertStringContainsString('Auto-delete alerts: off', $text);
+        $this->assertSame('set:autodel:on', $keyboard->toArray()['inline_keyboard'][2][0]['callback_data']);
+    }
+
     public function testMainListsServerMediaWithCurrentLevels(): void
     {
         [$text, $keyboard] = SettingsCommand::renderFromState($this->i18n(), 'en', 'inline', $this->media());
         $this->assertStringContainsString("Telegram: High, Disaster", $text);
         $this->assertStringContainsString("Email (HTML) (disabled): -", $text);
         $rows = $keyboard->toArray()['inline_keyboard'];
-        $this->assertSame('set:media:19', $rows[2][0]['callback_data']);
-        $this->assertSame('set:media:18', $rows[2][1]['callback_data']);
-        $this->assertStringContainsString('Email (HTML)', $rows[2][1]['text']);
+        $this->assertSame('set:media:19', $rows[3][0]['callback_data']);
+        $this->assertSame('set:media:18', $rows[3][1]['callback_data']);
+        $this->assertStringContainsString('Email (HTML)', $rows[3][1]['text']);
         $lastRow = $rows[array_key_last($rows)];
         $this->assertCount(1, $lastRow);
         $this->assertSame('set:close', $lastRow[0]['callback_data']);
