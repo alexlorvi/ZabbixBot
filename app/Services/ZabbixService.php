@@ -53,7 +53,11 @@ class ZabbixService {
         $map = [];
         foreach ($users as $user) {
             foreach ((array)($user['medias'] ?? []) as $media) {
-                $sendto = trim((string)($media['sendto'] ?? ''));
+                // mediatypeids фільтрує користувачів, а selectMedias віддає всі їхні media (Email - з масивом адрес)
+                if ((string)($media['mediatypeid'] ?? '') !== $mediaTypeId || !is_string($media['sendto'] ?? null)) {
+                    continue;
+                }
+                $sendto = trim($media['sendto']);
                 if ($sendto !== '' && !isset($map[$sendto])) {
                     $map[$sendto] = [
                         'userid' => (string)$user['userid'],
@@ -91,6 +95,7 @@ class ZabbixService {
     public function resetUserCache(): void {
         $this->cache->delete('zbx:users');
         $this->cache->delete('zbx:groups');
+        $this->cache->delete('zbx:mediatypes');
     }
 
     public function isUser(string $userID):bool {
@@ -102,51 +107,51 @@ class ZabbixService {
     }
 
     /**
-     * Усі налаштовані методи сповіщення (media) Zabbix-користувача, без фільтра по типу медіа.
-     * Викликається сервісним ключем (адмінські права потрібні для редагування чужого user-об'єкта).
+     * Усі методи сповіщення (media) Zabbix-користувача, як вони є на сервері (сервісним ключем).
+     * provisioned=1 - media з каталогу користувачів (LDAP), через API не змінюється.
      * @return list<array<string,mixed>>
      */
     public function getUserMediasFull(string $userId): array {
         $result = $this->request('user.get', [
             'userids' => $userId,
             'output' => ['userid'],
-            'selectMedias' => ['mediatypeid', 'sendto', 'active', 'severity', 'period'],
+            'selectMedias' => ['mediaid', 'mediatypeid', 'sendto', 'active', 'severity', 'period', 'provisioned'],
         ]);
-        return (is_array($result) && isset($result[0]['medias'])) ? $result[0]['medias'] : [];
+        return (is_array($result) && isset($result[0]['medias'])) ? array_values($result[0]['medias']) : [];
     }
 
     /**
-     * ID типів сповіщень (mediatype) для "виду" каналу: 'tg' - Telegram-медіа бота (zabbix.mediatype_id),
-     * 'email' - усі Zabbix mediatype з type=0 (Email).
-     * @return list<string>
+     * Назви медіатипів (mediatypeid => name) з сервера. Міняються рідко, тому кеш zabbix.mediatype_cache_ttl
+     * (3600с), при недоступності Zabbix - застарілий кеш. Скидається /reset.
+     * @return array<string,string>
      */
-    public function mediaTypeIdsForKind(string $kind): array {
-        if ($kind === 'tg') {
-            return [(string)ConfigService::getInstance()->getNested('zabbix.mediatype_id', '16')];
+    public function mediaTypeNames(): array {
+        $ttl = (int)ConfigService::getInstance()->getNested('zabbix.mediatype_cache_ttl', 3600);
+        $map = $this->cache->get('zbx:mediatypes', $ttl);
+        if ($map !== null) {
+            return $map;
         }
-        if ($kind === 'email') {
-            $types = $this->request('mediatype.get', ['output' => ['mediatypeid'], 'filter' => ['type' => 0]]);
-            return is_array($types) ? array_map('strval', array_column($types, 'mediatypeid')) : [];
+        $types = $this->request('mediatype.get', ['output' => ['mediatypeid', 'name']]);
+        if (!is_array($types)) {
+            return $this->cache->get('zbx:mediatypes', PHP_INT_MAX) ?? [];
         }
-        return [];
+        $map = [];
+        foreach ($types as $t) {
+            $map[(string)$t['mediatypeid']] = (string)$t['name'];
+        }
+        $this->cache->set('zbx:mediatypes', $map);
+        return $map;
     }
 
     /**
-     * Виставляє severity-маску на налаштовані методи сповіщення користувача (усі, або лише з переліку mediatype).
-     * Зберігає інші поля media (sendto/active/period) без змін.
-     * @param list<string>|null $mediaTypeIds обмеження за mediatypeid; null = усі media
+     * Виставляє severity-маску одному media користувача (за mediaid).
+     * user.update замінює весь список непровізіонованих media, тому передаються всі вони (інші - без змін),
+     * provisioned пропускаються (Zabbix їх лишає). Після оновлення mediaid можуть змінитися.
+     * @return bool false - media не знайдено, воно provisioned або помилка API
      */
-    public function updateUserMediaSeverity(string $userId, int $severityMask, ?array $mediaTypeIds = null): bool {
-        $medias = $this->getUserMediasFull($userId);
-        $changed = false;
-        foreach ($medias as &$media) {
-            if ($mediaTypeIds === null || in_array((string)$media['mediatypeid'], $mediaTypeIds, true)) {
-                $media['severity'] = (string)$severityMask;
-                $changed = true;
-            }
-        }
-        unset($media);
-        if (!$changed) {
+    public function updateUserMediaSeverity(string $userId, string $mediaId, int $severityMask): bool {
+        $medias = self::mediasWithSeverity($this->getUserMediasFull($userId), $mediaId, $severityMask);
+        if ($medias === null) {
             return false;
         }
         $result = $this->request('user.update', [
@@ -154,6 +159,37 @@ class ZabbixService {
             'medias' => $medias,
         ]);
         return is_array($result) && isset($result['userids']);
+    }
+
+    /**
+     * Чиста функція: список media для user.update - усі непровізіоновані (поля, які приймає API), у $mediaId - нова маска.
+     * @param list<array<string,mixed>> $medias як з getUserMediasFull()
+     * @return list<array<string,mixed>>|null null - media не знайдено або воно provisioned
+     */
+    public static function mediasWithSeverity(array $medias, string $mediaId, int $severityMask): ?array {
+        $out = [];
+        $found = false;
+        foreach ($medias as $media) {
+            if (!empty($media['provisioned'])) {
+                if ((string)$media['mediaid'] === $mediaId) {
+                    return null;
+                }
+                continue;
+            }
+            $item = [
+                'mediatypeid' => $media['mediatypeid'],
+                'sendto' => $media['sendto'],
+                'active' => $media['active'],
+                'severity' => $media['severity'],
+                'period' => $media['period'],
+            ];
+            if ((string)$media['mediaid'] === $mediaId) {
+                $item['severity'] = (string)$severityMask;
+                $found = true;
+            }
+            $out[] = $item;
+        }
+        return $found ? $out : null;
     }
 
     public function getUserToken($userID):string {

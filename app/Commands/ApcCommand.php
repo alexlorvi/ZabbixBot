@@ -8,6 +8,7 @@ use ZabbixBot\Services\LangService;
 use ZabbixBot\Services\UsagePrompts;
 use ZabbixBot\Services\MessageService;
 use ZabbixBot\Services\NetTools;
+use ZabbixBot\Services\Router;
 
 class ApcCommand extends Command {
     protected string $name = 'apc';
@@ -49,6 +50,7 @@ class ApcCommand extends Command {
     /** Спільне для /apc і кнопки APC на картці хоста. */
     public function run(MessageService $messenger, $chatId, string $ip): void {
         userLOG($chatId,'info',"< APC command for host: $ip");
-        $messenger->sendMessage($chatId, NetTools::fromConfig()->apc($ip), ['parse_mode' => 'html']);
+        $markup = Router::repeatMarkup('apc', $ip, null, $this->msg->getNested('net.repeat'));
+        $messenger->sendMessage($chatId, NetTools::fromConfig()->apc($ip), ['parse_mode' => 'html'] + ($markup !== null ? ['reply_markup' => $markup] : []));
     }
 }

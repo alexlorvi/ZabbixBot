@@ -56,6 +56,23 @@ final class RouterTest extends TestCase
         $this->assertSame('ignored', Router::classifyCallback('whatever')[0]);
     }
 
+    public function testParseNet(): void
+    {
+        $this->assertSame(['tool' => 'ping', 'target' => '10.0.0.1', 'count' => 200], Router::parseNet('ping.200:10.0.0.1'));
+        $this->assertSame(['tool' => 'ping', 'target' => '10.0.0.1', 'count' => null], Router::parseNet('ping:10.0.0.1'), 'old host card buttons');
+        $this->assertSame(['tool' => 'ping', 'target' => '2001:db8::1', 'count' => 4], Router::parseNet('ping.4:2001:db8::1'), 'IPv6 keeps its colons');
+        $this->assertSame(['tool' => 'cisco', 'target' => '10.0.0.1', 'count' => null], Router::parseNet('cisco:10.0.0.1'));
+    }
+
+    public function testRepeatMarkup(): void
+    {
+        $kb = json_decode(Router::repeatMarkup('ping', '10.0.0.1', 200, 'Repeat'), true);
+        $this->assertSame('net:ping.200:10.0.0.1', $kb['inline_keyboard'][0][0]['callback_data']);
+        $this->assertSame(['net', 'ping.200:10.0.0.1'], Router::classifyCallback($kb['inline_keyboard'][0][0]['callback_data']), 'round trip');
+        $this->assertSame('net:apc:10.0.0.1', json_decode(Router::repeatMarkup('apc', '10.0.0.1', null, 'R'), true)['inline_keyboard'][0][0]['callback_data']);
+        $this->assertNull(Router::repeatMarkup('ping', str_repeat('a', 60).'.example.com', 4, 'R'), 'over 64 bytes - no button');
+    }
+
     public function testSecretValid(): void
     {
         $this->assertTrue(Router::secretValid('', ''));

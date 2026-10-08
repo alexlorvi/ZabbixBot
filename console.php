@@ -6,6 +6,7 @@ require_once __DIR__.'/tools/helpers.php';
 
 use Symfony\Component\Console\Application;
 use ZabbixBot\Commands\CLI\MediaTypeCommand;
+use ZabbixBot\Commands\CLI\PingJobCommand;
 use ZabbixBot\Commands\CLI\RetryMessagesCommand;
 use ZabbixBot\Commands\CLI\SendMessagesCommand;
 use ZabbixBot\Commands\CLI\Top200SyncCommand;
@@ -38,6 +39,7 @@ $application->add(new SendMessagesCommand($messageService));
 $application->add(new Top200SyncCommand(new ZabbixService()));
 $application->add(new WebhookCommand());
 $application->add(new MediaTypeCommand(new ZabbixService()));
+$application->add(new PingJobCommand($messageService)); // прихована: фоновий /ping > 100 пакетів
 
 // Run the application
 $application->run();

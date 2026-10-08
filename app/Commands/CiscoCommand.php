@@ -8,6 +8,7 @@ use ZabbixBot\Services\LangService;
 use ZabbixBot\Services\UsagePrompts;
 use ZabbixBot\Services\MessageService;
 use ZabbixBot\Services\NetTools;
+use ZabbixBot\Services\Router;
 
 class CiscoCommand extends Command {
     protected string $name = 'cisco';
@@ -50,6 +51,7 @@ class CiscoCommand extends Command {
     public function run(MessageService $messenger, $chatId, string $ip): void {
         $messenger->sendMessage($chatId, $this->msg->getNested('command.cisco.wait'));
         userLOG($chatId,'info',"< Cisco command for host: $ip");
-        $messenger->sendMessage($chatId, NetTools::fromConfig()->cisco($ip));
+        $markup = Router::repeatMarkup('cisco', $ip, null, $this->msg->getNested('net.repeat'));
+        $messenger->sendMessage($chatId, NetTools::fromConfig()->cisco($ip), $markup !== null ? ['reply_markup' => $markup] : []);
     }
 }

@@ -14,10 +14,14 @@ return [
         'ping' => [
             'description' => 'Ping Command to check network connectivity',
             'usage' => emoji('warn').' Host or IP not specified.'.PHP_EOL.
-                       '*Usage:* /ping {HOST/IP} _{optional You can set count up to 50, default is 4}_'.PHP_EOL.
-                       '*Example:*'.PHP_EOL.'/ping google.com'.PHP_EOL.'/ping 8.8.8.8 20',
+                       '*Usage:* /ping {HOST/IP} _{packets, default 4; over 100 run in background, summary only}_'.PHP_EOL.
+                       '*Example:*'.PHP_EOL.'/ping google.com'.PHP_EOL.'/ping 8.8.8.8 20'.PHP_EOL.'/ping 8.8.8.8 1000',
             'start' => emoji('satelite').' Ping host...',
             'badHost' => "Host «%s» does not look like an IP or host name",
+            'bulkStarted' => "\u{1F4E1} Ping %s, %d packets - started in background. The summary will come as a reply to the command.",
+            'bulkBusy' => "Your previous long ping is still running, please wait.",
+            'bulkResult' => "\u{1F4CA} Ping %s, %d packets %s",
+            'bulkFailed' => "Could not start the background ping.",
         ],
         'events' => [
             'description' => 'Events Command to get event by Group Name',
@@ -40,8 +44,10 @@ return [
             'description' => 'Personal settings: language, notification severity, /menu style',
             'title' => "\u{2699}\u{FE0F} Settings",
             'lang' => 'Language',
-            'media_names' => ['tg' => 'Telegram', 'email' => 'Email'],
-            'media_missing' => 'This notification method is not configured in Zabbix.',
+            'media' => 'Notification methods',
+            'media_disabled' => 'disabled in Zabbix',
+            'media_provisioned' => 'This method comes from the user directory (LDAP) and is changed there, not in the bot.',
+            'media_missing' => 'This notification method no longer exists in Zabbix.',
             'severity' => 'Notification severity',
             'menu_style' => '/menu style',
             'menu_style_inline' => 'Inline buttons',
@@ -131,6 +137,8 @@ return [
         'error' => "\u{26A0} Zabbix rejected it: %s",
     ],
     'net' => [
+        'repeat' => "\u{1F504} Repeat",
+        'refresh' => "\u{1F504} Refresh",
         'bad_ip' => "%s does not look like an IP",
         'bad_ipv4' => "%s does not look like an IPv4",
         'failed' => "Something went wrong",

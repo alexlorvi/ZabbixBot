@@ -121,7 +121,10 @@ class HostCommand extends Command {
             $buttons[] = Keyboard::inlineButton(['text' => 'APC', 'callback_data' => 'net:apc:'.$ip]);
             $markup = Keyboard::make()->inline()->row($buttons);
         }
-        $messenger->sendMessage($chatId, rtrim($out), $markup !== null ? ['reply_markup' => $markup] : []);
+        // "Оновити" - та сама картка заново (стан і проблеми)
+        $markup ??= Keyboard::make()->inline();
+        $markup->row([Keyboard::inlineButton(['text' => $this->msg->getNested('net.refresh'), 'callback_data' => '/hostid'.$hostId])]);
+        $messenger->sendMessage($chatId, rtrim($out), ['reply_markup' => $markup]);
     }
 
     private function t(string $key): string {

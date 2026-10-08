@@ -196,16 +196,17 @@ class BotController {
 
                 case 'net':
                     // Кнопки Ping/Cisco/APC картки хоста (HostCommand::showHost), net:<tool>:<ip>
-                    [$tool, $target] = array_pad(explode(':', $arg, 2), 2, '');
-                    switch ($tool) {
+                    // і кнопки "Повторити" під результатом (net:ping.<count>:<host>); відповідь - на повідомлення з кнопкою
+                    $net = Router::parseNet($arg);
+                    switch ($net['tool']) {
                         case 'ping':
-                            (new \ZabbixBot\Commands\PingCommand())->run($this->tgBot, $chatId, $target);
+                            (new \ZabbixBot\Commands\PingCommand())->run($this->tgBot, $chatId, $net['target'], $net['count'] ?? \ZabbixBot\Services\PingService::DEFAULT_COUNT, $messageId);
                             break;
                         case 'cisco':
-                            (new \ZabbixBot\Commands\CiscoCommand())->run($this->message, $chatId, $target);
+                            (new \ZabbixBot\Commands\CiscoCommand())->run($this->message, $chatId, $net['target']);
                             break;
                         case 'apc':
-                            (new \ZabbixBot\Commands\ApcCommand())->run($this->message, $chatId, $target);
+                            (new \ZabbixBot\Commands\ApcCommand())->run($this->message, $chatId, $net['target']);
                             break;
                     }
                     break;

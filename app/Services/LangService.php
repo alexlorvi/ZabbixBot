@@ -37,6 +37,10 @@ class LangService {
         if (in_array($strLang,$this->languages)) $this->currentLanguage = $strLang;
     }
 
+    public function getLang(): string {
+        return $this->currentLanguage;
+    }
+
     public static function getInstance(): LangService {
         if (self::$instance === null) {
             self::$instance = new self();

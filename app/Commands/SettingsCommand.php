@@ -8,14 +8,15 @@ use ZabbixBot\Services\LangService;
 use ZabbixBot\Services\MessageService;
 use ZabbixBot\UserController;
 
-/** /settings - особиста панель (мова, рівень критичності сповіщень, стиль /menu). Працює через callback_query + editMessage. */
+/**
+ * /settings - особиста панель (мова, стиль /menu, рівні критичності кожного способу сповіщення).
+ * Працює через callback_query + editMessage. Способи сповіщення (media), назви їхніх типів і поточні рівні беруться
+ * з Zabbix і змінюються там же (user.update); назви медіатипів кешуються (ZabbixService::mediaTypeNames()).
+ */
 class SettingsCommand extends Command {
     protected string $name = 'settings';
     private LangService $msg;
     protected string $description;
-
-    /** Види каналів сповіщень: Telegram-media бота та Email. */
-    private const MEDIA_KINDS = ['tg', 'email'];
 
     public function __construct() {
         $this->msg = LangService::getInstance();
@@ -47,7 +48,7 @@ class SettingsCommand extends Command {
 
     /**
      * Застосовує одну дію і перерендерює панель тим самим повідомленням.
-     * @param list<string> $parts частини callback_data після "set:", напр. ['lang','ua'], ['media','tg'], ['sev','tg','3']
+     * @param list<string> $parts частини callback_data після "set:", напр. ['lang','ua'], ['media','<mediaid>'], ['sev','<mediaid>','3']
      */
     public function applyAndRerender(MessageService $messenger, UserController $user, $chatId, $messageId, array $parts): void {
         $action = $parts[0] ?? '';
@@ -72,9 +73,9 @@ class SettingsCommand extends Command {
                 return;
 
             case 'sev':
-                $kind = (string)$value;
-                $this->toggleSeverityBit($user, $kind, (int)($parts[2] ?? -1));
-                $this->editMedia($messenger, $user, $chatId, $messageId, $kind);
+                // після user.update mediaid можуть змінитися - підменю перебудовується за новими
+                $newId = $this->toggleSeverityBit($user, (string)$value, (int)($parts[2] ?? -1));
+                $this->editMedia($messenger, $user, $chatId, $messageId, $newId ?? (string)$value);
                 return;
 
             case 'close':
@@ -85,42 +86,74 @@ class SettingsCommand extends Command {
         $this->editOpen($messenger, $user, $chatId, $messageId);
     }
 
-    private function editMedia(MessageService $messenger, UserController $user, $chatId, $messageId, string $kind): void {
-        if (!in_array($kind, self::MEDIA_KINDS, true)) {
-            $this->editOpen($messenger, $user, $chatId, $messageId);
-            return;
-        }
-        [$text, $keyboard] = $this->renderMedia($user, $kind);
+    private function editMedia(MessageService $messenger, UserController $user, $chatId, $messageId, string $mediaId): void {
+        [$text, $keyboard] = $this->renderMedia($user, $mediaId);
         $messenger->editMessage($chatId, $messageId, $text, $keyboard);
     }
 
-    private function toggleSeverityBit(UserController $user, string $kind, int $bit): void {
-        if ($bit < 0 || $bit > 5 || !in_array($kind, self::MEDIA_KINDS, true)) {
-            return;
-        }
+    /**
+     * Перемикає один рівень у severity-масці media на сервері. userid - лише автентифікованого чату, не з callback_data.
+     * @return string|null mediaid цього ж media після оновлення (Zabbix перестворює media), null - не вдалося
+     */
+    private function toggleSeverityBit(UserController $user, string $mediaId, int $bit): ?string {
         $zbxUserId = $user->getZabbixUserId();
-        if ($zbxUserId === null) {
-            return;
+        if ($bit < 0 || $bit > 5 || $zbxUserId === null) {
+            return null;
         }
-        $mask = $this->mediaMask($user, $zbxUserId, $kind);
-        if ($mask === null) {
-            return;
+        $media = self::findMedia($user->zabbix()->getUserMediasFull($zbxUserId), $mediaId);
+        if ($media === null || !empty($media['provisioned'])) {
+            return null;
         }
-        $ids = $user->zabbix()->mediaTypeIdsForKind($kind);
-        if (!$user->zabbix()->updateUserMediaSeverity($zbxUserId, $mask ^ (1 << $bit), $ids)) {
-            mainLOG('zabbix','error','Failed to update '.$kind.' media severity for Zabbix user #'.$zbxUserId);
+        $newMask = (int)$media['severity'] ^ (1 << $bit);
+        if (!$user->zabbix()->updateUserMediaSeverity($zbxUserId, $mediaId, $newMask)) {
+            mainLOG('zabbix','error','Failed to update media #'.$mediaId.' severity for Zabbix user #'.$zbxUserId);
+            return null;
         }
-    }
-
-    /** Severity-маска першого media заданого виду, або null якщо у користувача такого media немає. */
-    private function mediaMask(UserController $user, string $zbxUserId, string $kind): ?int {
-        $ids = $user->zabbix()->mediaTypeIdsForKind($kind);
-        foreach ($user->zabbix()->getUserMediasFull($zbxUserId) as $media) {
-            if (in_array((string)$media['mediatypeid'], $ids, true)) {
-                return (int)$media['severity'];
+        // той самий media (тип + адреса) у свіжому списку
+        foreach ($user->zabbix()->getUserMediasFull($zbxUserId) as $m) {
+            if ((string)$m['mediatypeid'] === (string)$media['mediatypeid'] && $m['sendto'] == $media['sendto']) {
+                return (string)$m['mediaid'];
             }
         }
         return null;
+    }
+
+    /** @param list<array<string,mixed>> $medias */
+    private static function findMedia(array $medias, string $mediaId): ?array {
+        foreach ($medias as $m) {
+            if ((string)$m['mediaid'] === $mediaId) {
+                return $m;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Чиста функція: media користувача (як з user.get) -> пункти панелі.
+     * Підпис - назва медіатипу з сервера; якщо медіатипів одного типу кілька - з адресою; вимкнені - з позначкою.
+     * @param list<array<string,mixed>> $medias
+     * @param array<string,string> $typeNames mediatypeid => name
+     * @return list<array{id:string,label:string,mask:int,active:bool,provisioned:bool}>
+     */
+    public static function mediaEntries(array $medias, array $typeNames): array {
+        $perType = array_count_values(array_map(fn($m) => (string)$m['mediatypeid'], $medias));
+        $out = [];
+        foreach ($medias as $m) {
+            $type = (string)$m['mediatypeid'];
+            $label = $typeNames[$type] ?? '#'.$type;
+            if ($perType[$type] > 1) {
+                $sendto = is_array($m['sendto']) ? implode(', ', $m['sendto']) : (string)$m['sendto'];
+                $label .= ' ('.mb_strimwidth($sendto, 0, 24, '…').')';
+            }
+            $out[] = [
+                'id' => (string)$m['mediaid'],
+                'label' => $label,
+                'mask' => (int)$m['severity'],
+                'active' => (string)($m['active'] ?? '0') === '0', // у Zabbix 0 = увімкнено
+                'provisioned' => !empty($m['provisioned']),
+            ];
+        }
+        return $out;
     }
 
     /** @return array<string,string> */
@@ -129,7 +162,9 @@ class SettingsCommand extends Command {
         return [
             'title' => $msg->getNested('command.settings.title'),
             'lang' => $msg->getNested('command.settings.lang'),
-            'media_names' => $msg->getNested('command.settings.media_names', []),
+            'media' => $msg->getNested('command.settings.media'),
+            'media_disabled' => $msg->getNested('command.settings.media_disabled'),
+            'media_provisioned' => $msg->getNested('command.settings.media_provisioned'),
             'media_missing' => $msg->getNested('command.settings.media_missing'),
             'severity' => $msg->getNested('command.settings.severity'),
             'menu_style' => $msg->getNested('command.settings.menu_style'),
@@ -142,6 +177,15 @@ class SettingsCommand extends Command {
         ];
     }
 
+    /** Пункти media автентифікованого користувача з сервера. @return list<array{id:string,label:string,mask:int,active:bool,provisioned:bool}> */
+    private function userMedia(UserController $user): array {
+        $zbxUserId = $user->getZabbixUserId();
+        if ($zbxUserId === null) {
+            return [];
+        }
+        return self::mediaEntries($user->zabbix()->getUserMediasFull($zbxUserId), $user->zabbix()->mediaTypeNames());
+    }
+
     /**
      * Головна панель: збирає живі дані і делегує чистій renderFromState().
      * @return array{0:string,1:Keyboard}
@@ -149,38 +193,51 @@ class SettingsCommand extends Command {
     public function render(UserController $user): array {
         $lang = (string)$user->getPreference('lang', 'en');
         $menuStyle = (string)$user->getPreference('menu_style', 'inline');
-        $zbxUserId = $user->getZabbixUserId();
-        $available = [];
-        if ($zbxUserId !== null) {
-            foreach (self::MEDIA_KINDS as $kind) {
-                if ($this->mediaMask($user, $zbxUserId, $kind) !== null) {
-                    $available[] = $kind;
-                }
-            }
-        }
-        return self::renderFromState($this->i18n(), $lang, $menuStyle, $available);
+        return self::renderFromState($this->i18n(), $lang, $menuStyle, $this->userMedia($user));
     }
 
-    /** Підменю одного виду media (severity). @return array{0:string,1:Keyboard} */
-    public function renderMedia(UserController $user, string $kind): array {
-        $zbxUserId = $user->getZabbixUserId();
-        $mask = $zbxUserId !== null ? $this->mediaMask($user, $zbxUserId, $kind) : null;
-        return self::renderMediaFromState($this->i18n(), $kind, $mask);
+    /** Підменю одного media (severity). @return array{0:string,1:Keyboard} */
+    public function renderMedia(UserController $user, string $mediaId): array {
+        $entry = null;
+        foreach ($this->userMedia($user) as $e) {
+            if ($e['id'] === $mediaId) {
+                $entry = $e;
+            }
+        }
+        return self::renderMediaFromState($this->i18n(), $entry);
+    }
+
+    /** Назви увімкнених рівнів маски через кому, або "-". */
+    private static function levelsText(array $levels, int $mask): string {
+        $on = [];
+        foreach ($levels as $bit => $label) {
+            if ((($mask >> $bit) & 1) === 1) {
+                $on[] = $label;
+            }
+        }
+        return $on ? implode(', ', $on) : '-';
     }
 
     /**
-     * Чиста функція: головна панель (мова, стиль /menu, кнопки media-підменю, "Закрити"). Без "Назад".
+     * Чиста функція: головна панель (мова, стиль /menu, способи сповіщення з поточними рівнями, "Закрити"). Без "Назад".
      * @param array<string,mixed> $i18n
-     * @param list<string> $availableMedia види media, які налаштовані у користувача
+     * @param list<array{id:string,label:string,mask:int,active:bool,provisioned:bool}> $media mediaEntries()
      * @return array{0:string,1:Keyboard}
      */
-    public static function renderFromState(array $i18n, string $lang, string $menuStyle, array $availableMedia): array {
+    public static function renderFromState(array $i18n, string $lang, string $menuStyle, array $media): array {
         $languageNames = $i18n['languageNames'];
 
         $text = $i18n['title']."\n\n".
             $i18n['lang'].': '.($languageNames[$lang] ?? $lang)."\n".
             $i18n['menu_style'].': '.
             ($menuStyle === 'reply' ? $i18n['menu_style_reply'] : $i18n['menu_style_inline']);
+        if ($media) {
+            $text .= "\n\n".$i18n['media'].':';
+            foreach ($media as $m) {
+                $text .= "\n\u{2022} ".$m['label'].($m['active'] ? '' : ' ('.$i18n['media_disabled'].')').': '
+                    .self::levelsText($i18n['severity_levels'], $m['mask']);
+            }
+        }
 
         $keyboard = Keyboard::make()->inline();
 
@@ -204,15 +261,11 @@ class SettingsCommand extends Command {
             ]),
         ]);
 
-        $mediaRow = [];
-        foreach ($availableMedia as $kind) {
-            $mediaRow[] = Keyboard::inlineButton([
-                'text' => ($i18n['media_names'][$kind] ?? $kind),
-                'callback_data' => 'set:media:'.$kind,
-            ]);
-        }
-        if ($mediaRow) {
-            $keyboard->row($mediaRow);
+        foreach (array_chunk($media, 2) as $pair) {
+            $keyboard->row(array_map(fn($m) => Keyboard::inlineButton([
+                'text' => "\u{1F514} ".$m['label'],
+                'callback_data' => 'set:media:'.$m['id'],
+            ]), $pair));
         }
 
         $keyboard->row([
@@ -223,27 +276,33 @@ class SettingsCommand extends Command {
     }
 
     /**
-     * Чиста функція: підменю виду media - чекбокси severity та "Назад" до головної панелі.
+     * Чиста функція: підменю одного media - чекбокси severity та "Назад". Provisioned (LDAP) - лише перегляд.
      * @param array<string,mixed> $i18n
-     * @param int|null $mask поточна severity-маска; null = такого media у користувача немає
+     * @param array{id:string,label:string,mask:int,active:bool,provisioned:bool}|null $media null - media вже немає
      * @return array{0:string,1:Keyboard}
      */
-    public static function renderMediaFromState(array $i18n, string $kind, ?int $mask): array {
-        $name = $i18n['media_names'][$kind] ?? $kind;
-        $text = $i18n['title'].' - '.$name."\n\n".($mask === null ? $i18n['media_missing'] : $i18n['severity'].':');
-
+    public static function renderMediaFromState(array $i18n, ?array $media): array {
         $keyboard = Keyboard::make()->inline();
-        if ($mask !== null) {
-            foreach (array_chunk($i18n['severity_levels'], 2, true) as $pair) {
-                $row = [];
-                foreach ($pair as $bit => $label) {
-                    $checked = (($mask >> $bit) & 1) === 1;
-                    $row[] = Keyboard::inlineButton([
-                        'text' => ($checked ? "\u{2705} " : "\u{2B1C} ").$label,
-                        'callback_data' => 'set:sev:'.$kind.':'.$bit,
-                    ]);
+        if ($media === null) {
+            $text = $i18n['title']."\n\n".$i18n['media_missing'];
+        } else {
+            $text = $i18n['title'].' - '.$media['label']."\n\n"
+                .($media['active'] ? '' : $i18n['media_disabled']."\n")
+                .$i18n['severity'].':';
+            if ($media['provisioned']) {
+                $text .= ' '.self::levelsText($i18n['severity_levels'], $media['mask'])."\n\n".$i18n['media_provisioned'];
+            } else {
+                foreach (array_chunk($i18n['severity_levels'], 2, true) as $pair) {
+                    $row = [];
+                    foreach ($pair as $bit => $label) {
+                        $checked = (($media['mask'] >> $bit) & 1) === 1;
+                        $row[] = Keyboard::inlineButton([
+                            'text' => ($checked ? "\u{2705} " : "\u{2B1C} ").$label,
+                            'callback_data' => 'set:sev:'.$media['id'].':'.$bit,
+                        ]);
+                    }
+                    $keyboard->row($row);
                 }
-                $keyboard->row($row);
             }
         }
         $keyboard->row([

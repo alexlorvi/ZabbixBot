@@ -38,6 +38,34 @@ final class Router
         return in_array($route[0], ['command', 'text'], true) ? ['ignored', $data] : $route;
     }
 
+    /**
+     * Аргумент net:-callback ("ping.200:10.0.0.1", "cisco:10.0.0.1", старе "ping:10.0.0.1").
+     * Кількість пакетів - у назві інструмента, бо адреса (IPv6) сама містить ":".
+     * @return array{tool:string,target:string,count:?int}
+     */
+    public static function parseNet(string $arg): array
+    {
+        [$tool, $target] = array_pad(explode(':', $arg, 2), 2, '');
+        $count = null;
+        if (preg_match('/^([a-z]+)\.([0-9]+)$/', $tool, $m)) {
+            [$tool, $count] = [$m[1], (int)$m[2]];
+        }
+        return ['tool' => $tool, 'target' => $target, 'count' => $count];
+    }
+
+    /**
+     * Inline-кнопка "Повторити" для результату мережевої команди (JSON reply_markup).
+     * null - callback_data задовга (Telegram: до 64 байт), тоді без кнопки.
+     */
+    public static function repeatMarkup(string $tool, string $target, ?int $count, string $label): ?string
+    {
+        $data = 'net:'.$tool.($count !== null ? '.'.$count : '').':'.$target;
+        if (strlen($data) > 64) {
+            return null;
+        }
+        return json_encode(['inline_keyboard' => [[['text' => $label, 'callback_data' => $data]]]], JSON_UNESCAPED_UNICODE);
+    }
+
     /** Перевірка секрету вебхука: порожній секрет у конфізі = перевірка вимкнена. */
     public static function secretValid(string $configured, string $header): bool
     {

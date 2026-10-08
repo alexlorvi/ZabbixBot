@@ -82,6 +82,10 @@ return [
         // Community-рядки для SNMP-діагностики (/cisco, /apc)
         'snmp_community_cisco' => '',
         'snmp_community_apc' => 'public',
+        // /ping: найбільша к-сть пакетів (до 100 - живий вивід, понад - фоновий app:ping-job, лише підсумок)
+        //'ping_max_count' => 10000,
+        // PHP CLI для фонових завдань (вебхук працює під php-fpm). За замовчуванням PHP_BINDIR/php
+        //'php_cli' => '/usr/bin/php',
     ],
     'logger' => [
         'file_path' => LOG_PATH,
