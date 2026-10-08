@@ -5,18 +5,25 @@ namespace ZabbixBot\Services;
 /** Мережеві перевірки через системні утиліти (SNMP/nmap). Усі аргументи екрануються, усі виклики з timeout. */
 class NetTools {
 
+    /** @var callable(string):list<string> запуск команди оболонки -> рядки виводу (у тестах підміняється) */
+    private $run;
+
     /**
-     * @param array{bad_ip?:string,bad_ipv4?:string,failed?:string} $text i18n (LangService net.*); bad_ip/bad_ipv4 - sprintf з адресою
+     * @param array $text i18n (LangService net.*): bad_ip/bad_ipv4 (sprintf з адресою), failed, cisco.* (див. CiscoReport::render), units
      */
-    public function __construct(private readonly array $config, private readonly string $ciscoScript, private readonly array $text = []) {
+    public function __construct(private readonly array $config, private readonly array $text = [], ?callable $run = null) {
+        $this->run = $run ?? function (string $cmd): array {
+            exec($cmd, $out);
+            return $out;
+        };
     }
 
     /** Інстанс з config net.* і текстами поточної мови. */
     public static function fromConfig(): self {
+        $lang = LangService::getInstance();
         return new self(
             (array)ConfigService::getInstance()->getNested('net', []),
-            COMMANDS_PATH.'/get_Int_status_cisco2.sh',
-            (array)LangService::getInstance()->getNested('net', []),
+            (array)$lang->getNested('net', []) + ['units' => (array)$lang->getNested('main.durUnits', ['d' => 'd', 'h' => 'h', 'm' => 'm'])],
         );
     }
 
@@ -25,18 +32,46 @@ class NetTools {
         return sprintf((string)($this->text[$key] ?? $defaults[$key]), $arg);
     }
 
+    /**
+     * Стан Cisco (HTML, parse_mode=html) по SNMP v2c: інтерфейси, IP-адреси, trunk/access VLAN.
+     * Опитується шлюз підмережі вказаного IP (x.x.x.1) - /cisco викликають з IP хоста АЗК.
+     */
     public function cisco(string $ip): string {
         $ip = trim($ip);
         if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
-            return $this->t('bad_ipv4', $ip);
+            return htmlspecialchars($this->t('bad_ipv4', $ip), ENT_NOQUOTES, 'UTF-8');
+        }
+        $c = (array)($this->text['cisco'] ?? []) + [
+            'noCommunity' => 'SNMP community for Cisco is not configured (net.snmp_community_cisco)',
+            'noSnmp' => 'No SNMP response from %s',
+            'uptime' => 'uptime %s', 'ports' => "Ports: %d up (\u{1F7E2}) · %d down (\u{1F534}) · %d disabled (\u{26AA})",
+            'sinceBoot' => 'since boot',
+            'interfaces' => 'Interfaces', 'addresses' => 'Other IP addresses', 'adminDown' => 'disabled',
+        ];
+        $community = (string)($this->config['snmp_community_cisco'] ?? '');
+        if ($community === '') {
+            return htmlspecialchars($c['noCommunity'], ENT_NOQUOTES, 'UTF-8');
         }
         $octets = explode('.', $ip);
         array_pop($octets);
         $gw = implode('.', $octets).'.1';
-        $cmd = 'SNMP_COMMUNITY='.escapeshellarg((string)($this->config['snmp_community_cisco'] ?? ''))
-            .' timeout 90 bash '.escapeshellarg($this->ciscoScript).' '.escapeshellarg($gw).' 2>&1';
-        exec($cmd, $out);
-        return $out ? implode("\n", $out) : $this->t('failed');
+
+        // -On числові OID, -Oq без типів, -Oe enum числом, -Ot timeticks числом; опції - до адреси хоста
+        $opts = '-v2c -c '.escapeshellarg($community).' -On -Oq -Oe -Ot -t 2 -r 1';
+        $walk = CiscoReport::parse(($this->run)('timeout 10 snmpget '.$opts.' '.escapeshellarg($gw).' '.implode(' ', CiscoReport::SYSTEM).' 2>&1'));
+        if (!isset($walk[CiscoReport::SYSTEM[1]])) {
+            return sprintf(htmlspecialchars($c['noSnmp'], ENT_NOQUOTES, 'UTF-8'), $gw);
+        }
+        $roots = [
+            CiscoReport::IF_TABLE => '', CiscoReport::IFX_TABLE => '', CiscoReport::IP_TABLE => '',
+            CiscoReport::TRUNK_TABLE.'.14' => '', CiscoReport::TRUNK_TABLE.'.5' => '',
+            CiscoReport::TRUNK_TABLE.'.4' => ' -Ox', // бітова маска VLAN - завжди hex
+            CiscoReport::VM_VLAN => '',
+        ];
+        foreach ($roots as $root => $extra) {
+            $walk += CiscoReport::parse(($this->run)('timeout 30 snmpbulkwalk '.$opts.$extra.' '.escapeshellarg($gw).' '.escapeshellarg($root).' 2>&1'));
+        }
+        return CiscoReport::render(CiscoReport::build($walk), $gw, $c + ['units' => (array)($this->text['units'] ?? ['d' => 'd', 'h' => 'h', 'm' => 'm'])]);
     }
 
     /** Відповідь у HTML (parse_mode=html), вивід утиліт екранується. */

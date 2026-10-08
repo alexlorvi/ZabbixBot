@@ -140,6 +140,16 @@ return [
         'error' => "\u{26A0} Zabbix не прийняв: %s",
     ],
     'net' => [
+        'cisco' => [
+            'noCommunity' => 'SNMP community для Cisco не налаштовано (net.snmp_community_cisco).',
+            'noSnmp' => "\u{1F6AB} Немає відповіді SNMP від %s (пристрій недоступний, невірне community чи ACL).",
+            'uptime' => 'аптайм %s',
+            'ports' => "Порти: %d up (\u{1F7E2}) · %d down (\u{1F534}) · %d вимкнено (\u{26AA})",
+            'sinceBoot' => 'з моменту завантаження',
+            'interfaces' => 'Інтерфейси',
+            'addresses' => 'Інші IP-адреси',
+            'adminDown' => 'вимкнено',
+        ],
         'repeat' => "\u{1F504} Повторити",
         'refresh' => "\u{1F504} Оновити",
         'bad_ip' => "Щось оце %s не схоже на IP",

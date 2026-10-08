@@ -52,6 +52,6 @@ class CiscoCommand extends Command {
         $messenger->sendMessage($chatId, $this->msg->getNested('command.cisco.wait'));
         userLOG($chatId,'info',"< Cisco command for host: $ip");
         $markup = Router::repeatMarkup('cisco', $ip, null, $this->msg->getNested('net.repeat'));
-        $messenger->sendMessage($chatId, NetTools::fromConfig()->cisco($ip), $markup !== null ? ['reply_markup' => $markup] : []);
+        $messenger->sendMessage($chatId, NetTools::fromConfig()->cisco($ip), ['parse_mode' => 'html'] + ($markup !== null ? ['reply_markup' => $markup] : []));
     }
 }

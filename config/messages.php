@@ -140,6 +140,16 @@ return [
         'error' => "\u{26A0} Zabbix rejected it: %s",
     ],
     'net' => [
+        'cisco' => [
+            'noCommunity' => 'SNMP community for Cisco is not configured (net.snmp_community_cisco).',
+            'noSnmp' => "\u{1F6AB} No SNMP response from %s (device down, wrong community or ACL).",
+            'uptime' => 'uptime %s',
+            'ports' => "Ports: %d up (\u{1F7E2}) · %d down (\u{1F534}) · %d disabled (\u{26AA})",
+            'sinceBoot' => 'since boot',
+            'interfaces' => 'Interfaces',
+            'addresses' => 'Other IP addresses',
+            'adminDown' => 'disabled',
+        ],
         'repeat' => "\u{1F504} Repeat",
         'refresh' => "\u{1F504} Refresh",
         'bad_ip' => "%s does not look like an IP",

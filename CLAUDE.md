@@ -41,7 +41,7 @@ Single test / filter: `php vendor/bin/phpunit --filter testName tests/SomeTest.p
 ## Configuration
 
 - `config/config.php` is the real, gitignored config (copy `config/config.php.sample` to create it). Sections: `telegram` (bot token, webhook URL/secret, rate limit, proxy, registered command classes), `zabbix` (host/API key, `admin_group`, per-user token TTL and optional `token_key` for encryption, group aliases), `net` (SNMP community strings for `/cisco` and `/apc`), `logger` (paths, levels, retention), `emoji`.
-- `config/constants.php` defines path constants (`ROOT_PATH`, `CONF_PATH`, `MSG_PATH`, `LOG_PATH`, `USER_PREF_PATH`, `CACHE_PATH`, `TOKEN_PATH`, `COMMANDS_PATH`) used throughout the app instead of hardcoded paths.
+- `config/constants.php` defines path constants (`ROOT_PATH`, `CONF_PATH`, `MSG_PATH`, `LOG_PATH`, `USER_PREF_PATH`, `CACHE_PATH`, `TOKEN_PATH`, `ALERT_PATH`) used throughout the app instead of hardcoded paths.
 - `ConfigService` (singleton) loads `config/config.php` and exposes `getNested('a.b.c', $default)` dot-path lookups.
 - `LangService` (singleton) loads `config/messages.php` plus any `config/messages.<lang>.php` variants (e.g. `messages.ua.php`) and exposes the same `getNested()` dot-path API, falling back to the default language if a key is missing in the active one. Active language is per-user (`telegram.lang` default, overridable per user via preferences).
 
